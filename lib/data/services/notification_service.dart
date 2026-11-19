@@ -20,7 +20,15 @@ class NotificationService {
         tz.setLocalLocation(tz.getLocation('Asia/Ho_Chi_Minh'));
       }
       const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-      await _plugin.initialize(settings: const InitializationSettings(android: android));
+      // iOS: permission is asked only when the learner turns the reminder on (requestPermission).
+      const darwin = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
+      await _plugin.initialize(
+        settings: const InitializationSettings(android: android, iOS: darwin),
+      );
       _ready = true;
     } catch (_) {
       _ready = false;
@@ -28,10 +36,15 @@ class NotificationService {
     return _ready;
   }
 
-  /// Asks for POST_NOTIFICATIONS on Android 13+. Returns whether notifications are allowed.
+  /// Asks for POST_NOTIFICATIONS on Android 13+ / alert+sound permission on iOS.
+  /// Returns whether notifications are allowed.
   Future<bool> requestPermission() async {
     if (!await init()) return false;
     try {
+      final ios = _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      if (ios != null) {
+        return await ios.requestPermissions(alert: true, badge: false, sound: true) ?? false;
+      }
       final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       final granted = await android?.requestNotificationsPermission();
       return granted ?? true;
@@ -60,6 +73,7 @@ class NotificationService {
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
           ),
+          iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true, presentBanner: true, presentList: true),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,

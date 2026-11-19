@@ -1,0 +1,106 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: 3.41.4
+
+jobs:
+  build:
+    name: Build iOS app (no code signing)
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release app for iPhone
+        run: flutter build ios --release --no-codesign
+
+      - name: Verify bundle
+        run: |
+          APP=build/ios/iphoneos/Runner.app
+          test -f "$APP/Frameworks/App.framework/flutter_assets/assets/db/vocab.db"
+          plutil -p "$APP/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|CFBundleVersion|CFBundleDisplayName|MinimumOSVersion'
+          # the app is fully offline: no network usage descriptions, no ATS exceptions
+          if plutil -p "$APP/Info.plist" | grep -q NSAppTransportSecurity; then echo "unexpected ATS exception"; exit 1; fi
+          du -sh "$APP"
+
+      # An unsigned .ipa: sign it yourself (Xcode, AltStore, Sideloadly, …) before installing on a device.
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry IELTS_Vocabulary_Master_unsigned.ipa Payload
+          shasum -a 256 IELTS_Vocabulary_Master_unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: IELTS_Vocabulary_Master-ios-unsigned
+          path: IELTS_Vocabulary_Master_unsigned.ipa
+
+  simulator-test:
+    name: Integration test on iPhone simulator
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Boot an iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          runtimes = sorted((k for k in devices if 'iOS' in k), reverse=True)
+          for rt in runtimes:
+              for d in devices[rt]:
+                  if d['name'].startswith('iPhone'):
+                      print(d['udid']); sys.exit(0)
+          sys.exit('no iPhone simulator found')
+          ")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl list devices booted
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      # Same end-to-end journey as on Android: database copy, FTS4 search with the iOS system SQLite,
+      # flashcards (tap/swipe/grade), dictionary, restart persistence, quiz, backup/restore.
+      - name: Run integration test
+        run: flutter test integration_test/app_test.dart -d ${{ steps.sim.outputs.udid }} --reporter expanded
+
+      - name: Screenshot
+        if: always()
+        run: xcrun simctl io ${{ steps.sim.outputs.udid }} screenshot ios-simulator.png || true
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-screenshot
+          path: ios-simulator.png
+          if-no-files-found: ignore

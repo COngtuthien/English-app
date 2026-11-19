@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
 enum TtsAvailability { checking, available, otherAccentOnly, unavailable }
@@ -33,6 +34,16 @@ class TtsService {
 
   Future<void> _doInit() async {
     try {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        // Use a playback audio session so pronunciation is heard even with the silent switch on,
+        // and duck (not stop) other audio such as music.
+        try {
+          await _tts.setSharedInstance(true);
+          await _tts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback, [
+            IosTextToSpeechAudioCategoryOptions.duckOthers,
+          ], IosTextToSpeechAudioMode.spokenAudio);
+        } catch (_) {} // audio session tweaks are optional
+      }
       await _tts.awaitSpeakCompletion(true);
       final voices = await _tts.getVoices;
       final offline = <Map<String, String>>[];
