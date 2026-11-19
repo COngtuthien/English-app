@@ -61,7 +61,7 @@ jobs:
   simulator-test:
     name: Integration test on iPhone simulator
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
 
@@ -98,8 +98,10 @@ jobs:
       - name: Run integration test
         run: |
           set -o pipefail
-          flutter test integration_test/app_test.dart -d ${{ steps.sim.outputs.udid }} --reporter expanded 2>&1 | tee test.log || {
-            echo "::error title=iOS integration test failed::$(grep -v -E "CDN: |Fetching podspec" test.log | tail -n 45 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          # hard limit of 20 minutes (macOS has no `timeout`), so the log tail is always reported
+          perl -e 'alarm shift; exec @ARGV' 1200 \
+            flutter test integration_test/app_test.dart -d ${{ steps.sim.outputs.udid }} --reporter expanded 2>&1 | tee test.log || {
+            echo "::error title=iOS integration test failed::$( (grep '\[e2e\]' test.log | tail -n 8; echo '-----'; grep -v -E "CDN: |Fetching podspec" test.log | tail -n 40) | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 

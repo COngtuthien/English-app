@@ -30,6 +30,7 @@ void main() {
 
   testWidgets('full offline learning journey on device', (tester) async {
     // ---- first launch: database copied from the APK, onboarding shown
+    debugPrint('[e2e] first launch: database copied from the APK, onboarding shown');
     await tester.pumpWidget(const BootstrapApp());
     await pumpUntil(tester, find.byType(IeltsVocabularyApp));
     var c = containerOf(tester);
@@ -65,6 +66,7 @@ void main() {
     await pumpUntil(tester, find.text('Mục tiêu hôm nay'));
 
     // ---- learn new words through the flashcard UI (regression: grading must advance)
+    debugPrint('[e2e] learn new words through the flashcard UI (regression: grading must advance)');
     await tester.tap(find.text('Học từ mới'));
     await pumpUntil(tester, find.text('Hiện đáp án'));
     String counter() => tester.widget<Text>(find.byKey(const ValueKey('flash-counter'))).data!;
@@ -99,12 +101,14 @@ void main() {
     await pumpUntil(tester, find.text('Mục tiêu hôm nay'));
 
     // ---- dictionary search (Vietnamese, no diacritics)
+    debugPrint('[e2e] dictionary search (Vietnamese, no diacritics)');
     await tester.tap(find.text('Từ điển').last);
     await pumpUntil(tester, find.byType(TextField));
     await tester.enterText(find.byType(TextField), 'moi truong');
     await pumpUntil(tester, find.byType(WordTile));
 
     // ---- close and reopen the app: progress must persist
+    debugPrint('[e2e] close and reopen the app: progress must persist');
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpWidget(const BootstrapApp());
@@ -116,6 +120,7 @@ void main() {
     expect(c.read(settingsProvider).onboarded, isTrue, reason: 'settings survive restart');
 
     // ---- quiz
+    debugPrint('[e2e] quiz');
     await tester.tap(find.text('Luyện tập').last);
     await pumpUntil(tester, find.text('Quiz từ vựng'));
     await tester.tap(find.text('Quiz từ vựng'));
@@ -136,6 +141,7 @@ void main() {
     expect(sessions.single['total'], 5);
 
     // ---- backup & restore (service level; the system file picker cannot be automated)
+    debugPrint('[e2e] backup & restore (service level; the system file picker cannot be automated)');
     final svc = c.read(backupServiceProvider);
     final bytes = await svc.exportBytes();
     await c.read(databaseProvider).db.delete('learning_cards');
@@ -143,5 +149,6 @@ void main() {
     final summary = await svc.restore(bytes);
     expect(summary.learnedWords, 2);
     expect((await c.read(databaseProvider).db.query('learning_cards')).length, 2);
+    debugPrint('[e2e] done');
   });
 }
