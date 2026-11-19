@@ -12,6 +12,16 @@ _Last updated: 2026-11-19_
 | Release APK | **Built & verified**: release/IELTS_Vocabulary_Master.apk, 78,397,944 bytes, SHA-256 89f49bc4…e414, signed (v2) with local release key |
 | Device verification | Release APK installed & used offline (airplane mode) on Android 16 emulator; no physical phone available |
 
+## Bug fix in progress – `fix/flashcard-next-navigation` (local only, awaiting user test)
+* Version 1.0.1+2, APK `release/IELTS_Vocabulary_Master_flashcard_fix.apk` (same signing key as 1.0.0).
+* Root cause: in-session requeue of learning-step cards inserted the card right after itself when
+  ≤3 cards remained (always for 1-card sessions and at the end of every session), so grading showed
+  the same word again; plus the UI only advanced after DB write + achievement queries finished.
+* Fix: `FlashcardSession` controller (pure Dart, unit-tested) – immediate advance, card always
+  face-down, never the same card twice in a row, duplicate-grade guard; background ordered save chain;
+  outgoing card ignores taps; instruction "Chọn mức độ ghi nhớ để chuyển sang từ tiếp theo."
+* Baseline is preserved: tag `v1.0.0-baseline` (commit d76af7f) on GitHub, original APK unchanged.
+
 ## How to resume
 1. `scripts\setup_environment.ps1` (idempotent) – checks/installs toolchain and the signing key.
 2. `scripts\run_tests.ps1 -Device emulator-5554` – analysis, host tests, integration test.

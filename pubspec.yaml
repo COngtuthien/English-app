@@ -1,8 +1,8 @@
-﻿name: ielts_vocabulary_master
+name: ielts_vocabulary_master
 description: "IELTS Vocabulary Master - offline IELTS vocabulary trainer for Vietnamese learners"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.11.1

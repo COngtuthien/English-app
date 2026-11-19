@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,10 +8,13 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/common.dart';
 import '../../data/models/models.dart';
+import '../../data/repositories/achievement_repository.dart';
+import '../../data/repositories/learning_repository.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/quiz/answer_checker.dart';
 import '../../domain/srs/srs_scheduler.dart';
 import '../../providers.dart';
+import 'flashcard_session.dart';
 
 enum SessionKind { learnNew, review, random, topic, difficult, favorites }
 
@@ -38,55 +42,60 @@ class FlashcardSessionScreen extends ConsumerStatefulWidget {
   ConsumerState<FlashcardSessionScreen> createState() => _FlashcardSessionScreenState();
 }
 
-class _QueueItem {
-  final EntrySummary entry;
-  int requeues = 0;
-  _QueueItem(this.entry);
-}
-
 class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen> {
-  final List<_QueueItem> _queue = [];
+  FlashcardSession _session = FlashcardSession(const []);
   final Map<int, EntryDetail> _details = {};
-  int _pos = 0;
-  int _initialCount = 0;
-  bool _flipped = false;
   bool _loading = true;
-  bool _busy = false;
   Object? _error;
   late FlashMode _mode;
   DateTime _shownAt = DateTime.now();
+
+  /// Interval preview for the card at [_previewPos] (labels the grade buttons and decides
+  /// whether the card returns later in this session).
   Map<Grade, Duration> _preview = {};
-  final Map<Grade, int> _tally = {for (final g in Grade.values) g: 0};
-  final Set<int> _learnedNew = {};
+  int _previewPos = -1;
+  Future<void>? _preparing;
+
+  /// Reviews are written to the database in order, in the background, so the UI never waits on
+  /// I/O before showing the next card.
+  Future<void> _saveChain = Future.value();
+  int _pendingSaves = 0;
+  int _saveErrors = 0;
   bool _extraOffered = false;
+
+  late final LearningRepository _learning;
+  late final AchievementRepository _achievements;
+  late final StateController<int> _dataVersion;
 
   @override
   void initState() {
     super.initState();
     _mode = ref.read(settingsProvider).flashMode;
+    _learning = ref.read(learningRepoProvider);
+    _achievements = ref.read(achievementRepoProvider);
+    _dataVersion = ref.read(dataVersionProvider.notifier);
     _load();
   }
 
   Future<List<EntrySummary>> _fetch({int extra = 0}) async {
     final s = ref.read(settingsProvider);
-    final learn = ref.read(learningRepoProvider);
     final vocab = ref.read(vocabRepoProvider);
     switch (widget.kind) {
       case SessionKind.learnNew:
-        final remaining = extra > 0 ? extra : s.dailyNewWords - await learn.newWordsToday();
+        final remaining = extra > 0 ? extra : s.dailyNewWords - await _learning.newWordsToday();
         if (remaining <= 0) return [];
-        return learn.nextNewWords(remaining, s, topicId: widget.topicId);
+        return _learning.nextNewWords(remaining, s, topicId: widget.topicId);
       case SessionKind.review:
-        return learn.dueEntries(limit: s.dailyReviewLimit);
+        return _learning.dueEntries(limit: s.dailyReviewLimit);
       case SessionKind.random:
-        final learned = await learn.learnedIds();
+        final learned = await _learning.learnedIds();
         return learned.length >= 20 ? (await vocab.summaries((learned..shuffle()).take(20).toList())) : vocab.randomEntries(20);
       case SessionKind.topic:
         return vocab.randomEntries(20, topicId: widget.topicId);
       case SessionKind.difficult:
-        return (await learn.difficultWords())..shuffle();
+        return (await _learning.difficultWords())..shuffle();
       case SessionKind.favorites:
-        return ((await learn.favorites())..shuffle()).take(40).toList();
+        return ((await _learning.favorites())..shuffle()).take(40).toList();
     }
   }
 
@@ -96,46 +105,58 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
       _error = null;
     });
     try {
+      await _saveChain; // a previous session's reviews must be stored before new words are picked
       final items = await _fetch(extra: extra);
-      _queue
-        ..clear()
-        ..addAll(items.map(_QueueItem.new));
-      _pos = 0;
-      _initialCount = _queue.length;
-      _flipped = false;
-      if (_queue.isNotEmpty) await _prepareCurrent();
+      _session = FlashcardSession(items);
+      _previewPos = -1;
+      if (!_session.isEmpty) await _prepareCurrent();
     } catch (e) {
       _error = e;
     }
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _prepareCurrent() async {
-    final e = _queue[_pos].entry;
-    if (!_details.containsKey(e.id)) {
-      final d = await ref.read(vocabRepoProvider).detail(e.id);
-      if (d != null) _details[e.id] = d;
-    }
-    final card = await ref.read(learningRepoProvider).card(e.id);
-    _preview = ref.read(schedulerProvider).preview(e.id, card, DateTime.now().toUtc());
-    _shownAt = DateTime.now();
-    // prefetch next
-    if (_pos + 1 < _queue.length) {
-      final n = _queue[_pos + 1].entry.id;
-      if (!_details.containsKey(n)) {
-        ref.read(vocabRepoProvider).detail(n).then((d) {
-          if (d != null) _details[n] = d;
-        });
+  /// Loads details + the FSRS interval preview for the current position. Waits for pending saves
+  /// first, because a card that comes back in the session must be previewed from its saved state.
+  Future<void> _prepareCurrent() {
+    final pos = _session.position;
+    final item = _session.current;
+    if (item == null) return Future.value();
+    final f = () async {
+      await _saveChain;
+      final e = item.entry;
+      if (!_details.containsKey(e.id)) {
+        final d = await ref.read(vocabRepoProvider).detail(e.id);
+        if (d != null) _details[e.id] = d;
       }
-    }
-    final s = ref.read(settingsProvider);
-    if (s.autoPlayAudio && (_effectiveMode() == FlashMode.enToVi)) {
-      ref.read(ttsProvider).speak(e.headword, accent: s.accent, rate: s.speechRate);
-    }
+      final card = await _learning.card(e.id);
+      if (!mounted || _session.position != pos) return;
+      setState(() {
+        _preview = ref.read(schedulerProvider).preview(e.id, card, DateTime.now().toUtc());
+        _previewPos = pos;
+      });
+      final n = _session.next?.entry.id;
+      if (n != null && !_details.containsKey(n)) {
+        unawaited(
+          ref.read(vocabRepoProvider).detail(n).then((d) {
+            if (d != null) _details[n] = d;
+          }),
+        );
+      }
+      final s = ref.read(settingsProvider);
+      if (s.autoPlayAudio && _effectiveMode() == FlashMode.enToVi) {
+        unawaited(ref.read(ttsProvider).speak(e.headword, accent: s.accent, rate: s.speechRate));
+      }
+    }();
+    _shownAt = DateTime.now();
+    _preparing = f;
+    return f;
   }
 
   FlashMode _effectiveMode() {
-    if (_mode == FlashMode.cloze && _clozeFor(_queue[_pos].entry) == null) return FlashMode.enToVi;
+    final cur = _session.current;
+    if (cur == null) return _mode;
+    if (_mode == FlashMode.cloze && _clozeFor(cur.entry) == null) return FlashMode.enToVi;
     return _mode;
   }
 
@@ -153,36 +174,61 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     return x == null ? null : blankOut(x.textEn, x.highlight!);
   }
 
-  Future<void> _rate(Grade g) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final item = _queue[_pos];
-    try {
-      final outcome = await ref
-          .read(learningRepoProvider)
-          .review(
-            item.entry.id,
-            g,
-            mode: widget.kind.mode,
-            durationMs: DateTime.now().difference(_shownAt).inMilliseconds.clamp(0, 600000),
-          );
-      _tally[g] = _tally[g]! + 1;
-      if (widget.kind == SessionKind.learnNew) _learnedNew.add(item.entry.id);
-      // learning steps: bring the card back later in this session if it is due again soon
-      final dueIn = outcome.card.due.difference(DateTime.now().toUtc());
-      if (dueIn < const Duration(minutes: 15) && item.requeues < 3) {
-        item.requeues++;
-        final insertAt = math.min(_queue.length, _pos + 4);
-        _queue.insert(insertAt, _QueueItem(item.entry)..requeues = item.requeues);
-      }
-      _pos++;
-      _flipped = false;
-      if (_pos < _queue.length) await _prepareCurrent();
-      if (mounted) await afterLearningActivity(ref, context);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Không lưu được kết quả: $e')));
+  void _toggleFlip() => setState(_session.toggleFlip);
+
+  /// Grades the card shown at [atPosition]: advances synchronously (next card, face-down), then
+  /// stores the review in the background. Duplicate taps for the same position are ignored.
+  Future<void> _rate(Grade g, int atPosition) async {
+    if (_previewPos != atPosition && _preparing != null) {
+      await _preparing; // the preview decides whether the card comes back in this session
     }
-    if (mounted) setState(() => _busy = false);
+    if (!mounted) return;
+    final interval = _previewPos == atPosition ? _preview[g] : null;
+    final durationMs = DateTime.now().difference(_shownAt).inMilliseconds.clamp(0, 600000);
+    final result = _session.grade(g, atPosition: atPosition, nextInterval: interval ?? const Duration(days: 1));
+    if (result == null) return; // duplicate / not revealed / finished
+    setState(() {
+      _preview = {};
+      _previewPos = -1;
+    });
+    _persist(result, durationMs);
+    if (!_session.isFinished) unawaited(_prepareCurrent());
+  }
+
+  void _persist(GradeResult r, int durationMs) {
+    _pendingSaves++;
+    _saveChain = _saveChain.then((_) async {
+      try {
+        await _learning.review(r.item.entry.id, r.grade, mode: widget.kind.mode, durationMs: durationMs);
+        final fresh = await _achievements.evaluate();
+        _dataVersion.state++;
+        if (mounted && fresh.isNotEmpty) {
+          for (final a in fresh) {
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.emoji_events, color: Colors.amber),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Thành tích mới: ${a.title}')),
+                  ],
+                ),
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        _saveErrors++;
+        if (mounted) {
+          ScaffoldMessenger.maybeOf(
+            context,
+          )?.showSnackBar(SnackBar(content: Text('Không lưu được kết quả của "${r.item.entry.headword}": $e')));
+        }
+      } finally {
+        _pendingSaves--;
+        if (mounted) setState(() {});
+      }
+    });
   }
 
   @override
@@ -212,27 +258,46 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
   Widget _body(BuildContext context) {
     if (_loading) return const LoadingView(message: 'Đang chuẩn bị thẻ…');
     if (_error != null) return ErrorView(_error!, onRetry: _load);
-    if (_queue.isEmpty) return _emptyState(context);
-    if (_pos >= _queue.length) return _summary(context);
-    final item = _queue[_pos];
-    final total = math.max(_initialCount, _queue.length);
+    if (_session.isEmpty) return _emptyState(context);
+    if (_session.isFinished) return _summary(context);
+    final item = _session.current!;
+    final pos = _session.position;
+    final revealed = _session.revealed;
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
           child: Row(
             children: [
-              Expanded(child: RoundedProgress(value: _pos / total, height: 8)),
+              Expanded(child: RoundedProgress(value: _session.progress, height: 8)),
               const SizedBox(width: 12),
-              Text('${_pos + 1}/$total', style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                _session.counterLabel,
+                key: const ValueKey('flash-counter'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
+        if (item.appearance > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Pill('Ôn lại lần ${item.appearance + 1} • bước học ngắn', icon: Icons.replay_rounded, color: AppColors.amber),
+          ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 280),
+              // The outgoing card is still painted while it fades out, but it must not receive taps.
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.center,
+                children: [
+                  for (final p in previous) IgnorePointer(child: p),
+                  ?current,
+                ],
+              ),
               transitionBuilder: (child, anim) => SlideTransition(
                 position: Tween(
                   begin: const Offset(0.25, 0),
@@ -241,10 +306,11 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
                 child: FadeTransition(opacity: anim, child: child),
               ),
               child: KeyedSubtree(
-                key: ValueKey('card-$_pos-${item.entry.id}'),
+                key: ValueKey('card-$pos-${item.entry.id}'),
                 child: GestureDetector(
-                  onTap: () => setState(() => _flipped = !_flipped),
-                  child: FlipCard(flipped: _flipped, front: _front(context, item.entry), back: _back(context, item.entry)),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _toggleFlip,
+                  child: FlipCard(flipped: revealed, front: _front(context, item.entry), back: _back(context, item.entry)),
                 ),
               ),
             ),
@@ -252,16 +318,32 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          child: _flipped
-              ? Row(
+          child: revealed
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final g in Grade.values) ...[if (g != Grade.again) const SizedBox(width: 8), Expanded(child: _gradeButton(g))],
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Chọn mức độ ghi nhớ để chuyển sang từ tiếp theo.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        for (final g in Grade.values) ...[
+                          if (g != Grade.again) const SizedBox(width: 8),
+                          Expanded(child: _gradeButton(g, pos)),
+                        ],
+                      ],
+                    ),
                   ],
                 )
               : SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
-                    onPressed: () => setState(() => _flipped = true),
+                    onPressed: () => setState(_session.reveal),
                     icon: const Icon(Icons.flip_rounded),
                     label: const Text('Hiện đáp án'),
                   ),
@@ -271,27 +353,28 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     );
   }
 
-  Widget _gradeButton(Grade g) {
+  Widget _gradeButton(Grade g, int pos) {
     final color = switch (g) {
       Grade.again => AppColors.danger,
       Grade.hard => AppColors.amber,
       Grade.good => AppColors.indigo,
       Grade.easy => AppColors.success,
     };
-    final interval = _preview[g];
+    final interval = _previewPos == pos ? _preview[g] : null;
     return FilledButton(
+      key: ValueKey('grade-${g.name}'),
       style: FilledButton.styleFrom(
         backgroundColor: color.withValues(alpha: 0.14),
         foregroundColor: color,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
         minimumSize: const Size(0, 58),
       ),
-      onPressed: _busy ? null : () => _rate(g),
+      onPressed: () => _rate(g, pos),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(g.labelVi, style: const TextStyle(fontWeight: FontWeight.w800)),
-          if (interval != null) Text(formatInterval(interval), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+          Text(interval == null ? '…' : formatInterval(interval), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -491,8 +574,10 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
   }
 
   Widget _summary(BuildContext context) {
-    final reviewed = _tally.values.fold<int>(0, (a, b) => a + b);
-    final good = reviewed - _tally[Grade.again]!;
+    final s = _session;
+    final reviewed = s.totalGraded;
+    final good = reviewed - s.tally[Grade.again]!;
+    final cs = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -510,9 +595,25 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
         const SizedBox(height: 8),
         Text(
           widget.kind == SessionKind.learnNew
-              ? 'Bạn vừa học ${_learnedNew.length} từ mới với $reviewed lượt ôn.'
-              : 'Bạn đã ôn $reviewed lượt, nhớ được $good lượt.',
+              ? 'Bạn vừa học ${s.gradedEntries.length} từ mới với $reviewed lượt chấm.'
+              : 'Bạn đã ôn ${s.gradedEntries.length} từ ($reviewed lượt), nhớ được $good lượt.',
           textAlign: TextAlign.center,
+        ),
+        if (s.pendingLearningSteps.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '${s.pendingLearningSteps.length} từ sẽ xuất hiện lại trong phần Ôn tập sau ít phút.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Center(
+          child: _pendingSaves > 0
+              ? const Pill('Đang lưu kết quả…', icon: Icons.sync_rounded)
+              : _saveErrors > 0
+              ? Pill('$_saveErrors kết quả chưa lưu được', icon: Icons.error_outline_rounded, color: AppColors.danger)
+              : const Pill('Đã lưu tiến độ', icon: Icons.check_circle_rounded, color: AppColors.success),
         ),
         const SizedBox(height: 24),
         Row(
@@ -521,7 +622,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               Expanded(
                 child: Column(
                   children: [
-                    Text('${_tally[g]}', style: Theme.of(context).textTheme.headlineSmall),
+                    Text('${s.tally[g]}', style: Theme.of(context).textTheme.headlineSmall),
                     Text(g.labelVi),
                   ],
                 ),

@@ -10,7 +10,7 @@
 .PARAMETER SkipTests   Skip flutter analyze/test (not recommended).
 .PARAMETER Aab         Also build an Android App Bundle.
 #>
-param([switch]$SkipTests, [switch]$Aab)
+param([switch]$SkipTests, [switch]$Aab, [string]$ApkName = 'IELTS_Vocabulary_Master.apk')
 
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -97,7 +97,7 @@ if ($LASTEXITCODE -ne 0) { throw 'apksigner verification failed' }
 $ErrorActionPreference = 'Stop'
 
 Step 9 'Copying artifacts to release/'
-Copy-Item $Apk (Join-Path $Release 'IELTS_Vocabulary_Master.apk') -Force
+Copy-Item $Apk (Join-Path $Release $ApkName) -Force
 if ($Aab -and (Test-Path 'build\app\outputs\bundle\release\app-release.aab')) {
   Copy-Item 'build\app\outputs\bundle\release\app-release.aab' (Join-Path $Release 'IELTS_Vocabulary_Master.aab') -Force
 }
@@ -109,4 +109,4 @@ $lines = Get-ChildItem $Release -File | Where-Object { $_.Extension -in '.apk', 
 $lines | Out-File -Encoding utf8 (Join-Path $Release 'SHA256.txt')
 $lines | Out-Host
 "Build finished $(Get-Date -Format o)" | Out-File -Append -Encoding utf8 $Log
-Write-Host "`nDone. APK: $Release\IELTS_Vocabulary_Master.apk" -ForegroundColor Green
+Write-Host "`nDone. APK: $Release\$ApkName" -ForegroundColor Green

@@ -59,16 +59,29 @@ void main() {
     await tester.tap(find.text('Bắt đầu học'));
     await pumpUntil(tester, find.text('Mục tiêu hôm nay'));
 
-    // ---- learn one new word through the flashcard UI
+    // ---- learn new words through the flashcard UI (regression: grading must advance)
     await tester.tap(find.text('Học từ mới'));
     await pumpUntil(tester, find.text('Hiện đáp án'));
+    String counter() => tester.widget<Text>(find.byKey(const ValueKey('flash-counter'))).data!;
+    expect(counter(), startsWith('1/'));
+    await tester.tap(find.text('Chạm để lật thẻ')); // reveal by tapping the card itself
+    await pumpUntil(tester, find.byKey(const ValueKey('grade-good')));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byKey(const ValueKey('grade-good')));
+    await pumpUntil(tester, find.text('Hiện đáp án')); // next card, face-down
+    expect(counter(), startsWith('2/'));
+    expect(find.byKey(const ValueKey('grade-good')), findsNothing);
     await tester.tap(find.text('Hiện đáp án'));
-    await pumpUntil(tester, find.text('Nhớ'));
-    await tester.tap(find.text('Nhớ'));
+    await pumpUntil(tester, find.byKey(const ValueKey('grade-easy')));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.tap(find.byKey(const ValueKey('grade-easy')));
+    await pumpUntil(tester, find.text('Hiện đáp án'));
+    expect(counter(), startsWith('3/'));
     await tester.pump(const Duration(seconds: 1));
     c = containerOf(tester);
     final cards = await c.read(databaseProvider).db.query('learning_cards');
-    expect(cards.length, 1);
+    expect(cards.length, 2);
+    expect((await c.read(databaseProvider).db.query('review_history')).length, 2);
     c.read(routerProvider).pop();
     await pumpUntil(tester, find.text('Mục tiêu hôm nay'));
 
@@ -85,7 +98,8 @@ void main() {
     await pumpUntil(tester, find.text('Mục tiêu hôm nay'));
     c = containerOf(tester);
     final after = await c.read(databaseProvider).db.query('learning_cards');
-    expect(after.length, 1, reason: 'learning progress survives restart');
+    expect(after.length, 2, reason: 'learning progress survives restart');
+    expect((await c.read(databaseProvider).db.query('review_history')).length, 2, reason: 'review history survives restart');
     expect(c.read(settingsProvider).onboarded, isTrue, reason: 'settings survive restart');
 
     // ---- quiz
@@ -114,7 +128,7 @@ void main() {
     await c.read(databaseProvider).db.delete('learning_cards');
     expect(await c.read(databaseProvider).db.query('learning_cards'), isEmpty);
     final summary = await svc.restore(bytes);
-    expect(summary.learnedWords, 1);
-    expect((await c.read(databaseProvider).db.query('learning_cards')).length, 1);
+    expect(summary.learnedWords, 2);
+    expect((await c.read(databaseProvider).db.query('learning_cards')).length, 2);
   });
 }
