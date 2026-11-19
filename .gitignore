@@ -67,3 +67,6 @@ local.properties
 *.p12
 *.pem
 
+
+# staged GitHub Release assets (APK copies + .sha256), produced by scripts/publish_release.ps1
+/release/dist/

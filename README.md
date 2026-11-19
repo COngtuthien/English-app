@@ -13,6 +13,9 @@
 ![Offline](https://img.shields.io/badge/internet-not%20required-16A34A)
 ![Data licence](https://img.shields.io/badge/data-CC%20BY--SA%204.0-lightgrey)
 
+<!-- download:start -->
+<!-- download:end -->
+
 [Features](#-features) ·
 [Screenshots](#-screenshots) ·
 [Vocabulary data](#-vocabulary-data) ·
@@ -20,7 +23,8 @@
 [Architecture](#-architecture) ·
 [Testing](#-testing) ·
 [Licence](#-licence--attribution) ·
-[Changelog](CHANGELOG.md)
+[Changelog](CHANGELOG.md) ·
+[Releasing](RELEASING.md)
 
 </div>
 
