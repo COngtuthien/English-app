@@ -34,7 +34,7 @@ class AboutScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               Text('IELTS Vocabulary Master', textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
-              const Text('Phiên bản 1.0.2', textAlign: TextAlign.center),
+              const Text('Phiên bản 1.0.3', textAlign: TextAlign.center),
               const SizedBox(height: 12),
               Text(
                 'Ứng dụng học từ vựng IELTS hoàn toàn ngoại tuyến dành cho người Việt: $total mục từ, '
@@ -98,7 +98,7 @@ class AboutScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: () => showLicensePage(context: context, applicationName: 'IELTS Vocabulary Master', applicationVersion: '1.0.2'),
+                onPressed: () => showLicensePage(context: context, applicationName: 'IELTS Vocabulary Master', applicationVersion: '1.0.3'),
                 child: const Text('Giấy phép thư viện mã nguồn mở'),
               ),
               const SizedBox(height: 12),

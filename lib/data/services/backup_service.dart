@@ -28,7 +28,7 @@ class BackupSummary {
 class BackupService {
   final Database db;
   final String appVersion;
-  BackupService(this.db, {this.appVersion = '1.0.2'});
+  BackupService(this.db, {this.appVersion = '1.0.3'});
 
   Future<Uint8List> exportBytes({DateTime? now}) async {
     final data = <String, Object?>{};

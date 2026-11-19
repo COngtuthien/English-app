@@ -115,6 +115,53 @@ void main() {
     }
   });
 
+  test('swipe right (goNext) moves forward without grading; past the last card finishes', () {
+    final s = FlashcardSession([w(1), w(2)]);
+    s.reveal();
+    expect(s.goNext(), isTrue);
+    expect(s.current!.entry.id, 2);
+    expect(s.revealed, isFalse, reason: 'next card is face-down');
+    expect(s.totalGraded, 0);
+    expect(s.goNext(), isTrue);
+    expect(s.isFinished, isTrue);
+    expect(s.goNext(), isFalse);
+    expect(s.skippedEntries, {1, 2});
+  });
+
+  test('swipe left (goPrevious) goes back; not before the first card', () {
+    final s = FlashcardSession([w(1), w(2), w(3)]);
+    expect(s.canGoBack, isFalse);
+    expect(s.goPrevious(), isFalse);
+    s.goNext();
+    s.goNext();
+    s.reveal();
+    expect(s.goPrevious(), isTrue);
+    expect(s.current!.entry.id, 2);
+    expect(s.revealed, isFalse);
+    // from the summary the learner can come back to the last card
+    s.goNext();
+    s.goNext();
+    expect(s.isFinished, isTrue);
+    expect(s.goPrevious(), isTrue);
+    expect(s.current!.entry.id, 3);
+  });
+
+  test('a revisited graded card cannot be graded twice', () {
+    final s = FlashcardSession([w(1), w(2)]);
+    s.reveal();
+    s.grade(Grade.good, atPosition: 0, nextInterval: long);
+    s.goPrevious();
+    expect(s.current!.entry.id, 1);
+    expect(s.current!.isGraded, isTrue);
+    expect(s.current!.grade, Grade.good);
+    s.reveal();
+    expect(s.grade(Grade.easy, atPosition: 0, nextInterval: long), isNull);
+    expect(s.totalGraded, 1);
+    s.goNext();
+    expect(s.current!.entry.id, 2);
+    expect(s.skippedEntries, {2});
+  });
+
   test('completing the final card finishes the session', () {
     final s = FlashcardSession([w(1), w(2)]);
     for (var i = 0; i < 2; i++) {

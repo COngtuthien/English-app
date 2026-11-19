@@ -182,15 +182,48 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
 
   void _toggleFlip() => setState(_session.toggleFlip);
 
-  // Swiping the card in any direction (left, right, up or down) flips it, like a tap.
-  Offset _drag = Offset.zero;
-  static const double _swipeDistance = 40;
-  static const double _swipeVelocity = 300;
+  // Horizontal swipes navigate the deck: swipe right -> next card, swipe left -> previous card.
+  // (Tap / "Hiện đáp án" reveals the answer; vertical drags are left to scrolling.)
+  double _dragDx = 0;
+  static const double _swipeDistance = 60;
+  static const double _swipeVelocity = 400;
+
+  /// Horizontal offset the incoming card slides in from (follows the finger direction).
+  double _enterFrom = 0.25;
 
   void _onSwipeEnd(DragEndDetails d) {
-    final fast = d.velocity.pixelsPerSecond.distance >= _swipeVelocity;
-    if (_drag.distance >= _swipeDistance || fast) _toggleFlip();
-    _drag = Offset.zero;
+    final vx = d.velocity.pixelsPerSecond.dx;
+    final dx = _dragDx;
+    _dragDx = 0;
+    final right = dx >= _swipeDistance || vx >= _swipeVelocity;
+    final left = dx <= -_swipeDistance || vx <= -_swipeVelocity;
+    if (right && !left) {
+      _goNext();
+    } else if (left && !right) {
+      _goPrevious();
+    }
+  }
+
+  void _goNext() {
+    setState(() {
+      _enterFrom = -0.25; // swipe right: the next card comes in from the left
+      _session.goNext();
+    });
+    if (!_session.isFinished) unawaited(_prepareCurrent());
+  }
+
+  void _goPrevious() {
+    if (!_session.canGoBack) {
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Đây là thẻ đầu tiên'), duration: Duration(seconds: 1)));
+      return;
+    }
+    setState(() {
+      _enterFrom = 0.25; // swipe left: the previous card comes in from the right
+      _session.goPrevious();
+    });
+    unawaited(_prepareCurrent());
   }
 
   /// Grades the card shown at [atPosition]: advances synchronously (next card, face-down), then
@@ -205,6 +238,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     final result = _session.grade(g, atPosition: atPosition, nextInterval: interval ?? const Duration(days: 1));
     if (result == null) return; // duplicate / not revealed / finished
     setState(() {
+      _enterFrom = 0.25;
       _preview = {};
       _previewPos = -1;
     });
@@ -297,6 +331,33 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+          child: Row(
+            children: [
+              Icon(Icons.swipe_left_rounded, size: 16, color: cs.outline),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Vuốt trái: thẻ trước',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.outline, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Vuốt phải: thẻ tiếp',
+                  textAlign: TextAlign.end,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.outline, fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.swipe_right_rounded, size: 16, color: cs.outline),
+            ],
+          ),
+        ),
         if (item.appearance > 0)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -317,7 +378,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               ),
               transitionBuilder: (child, anim) => SlideTransition(
                 position: Tween(
-                  begin: const Offset(0.25, 0),
+                  begin: Offset(_enterFrom, 0),
                   end: Offset.zero,
                 ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
                 child: FadeTransition(opacity: anim, child: child),
@@ -328,9 +389,9 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
                   key: const ValueKey('flash-card'),
                   behavior: HitTestBehavior.opaque,
                   onTap: _toggleFlip,
-                  onPanStart: (_) => _drag = Offset.zero,
-                  onPanUpdate: (d) => _drag += d.delta,
-                  onPanEnd: _onSwipeEnd,
+                  onHorizontalDragStart: (_) => _dragDx = 0,
+                  onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
+                  onHorizontalDragEnd: _onSwipeEnd,
                   child: FlipCard(flipped: revealed, front: _front(context, item.entry), back: _back(context, item.entry)),
                 ),
               ),
@@ -339,7 +400,19 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          child: revealed
+          child: revealed && item.isGraded
+              ? Container(
+                  key: const ValueKey('already-graded'),
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16)),
+                  child: Text(
+                    'Bạn đã chấm thẻ này: ${item.grade!.labelVi}. Vuốt sang phải để sang thẻ tiếp theo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+                  ),
+                )
+              : revealed
               ? Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -489,7 +562,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Chạm hoặc vuốt để lật thẻ',
+                  'Chạm để xem đáp án',
                   textAlign: TextAlign.end,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -607,6 +680,21 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     final reviewed = s.totalGraded;
     final good = reviewed - s.tally[Grade.again]!;
     final cs = Theme.of(context).colorScheme;
+    final skipped = s.skippedEntries.length;
+    return GestureDetector(
+      // swipe left on the summary goes back to the last card
+      onHorizontalDragStart: (_) => _dragDx = 0,
+      onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
+      onHorizontalDragEnd: (d) {
+        final back = _dragDx <= -_swipeDistance || d.velocity.pixelsPerSecond.dx <= -_swipeVelocity;
+        _dragDx = 0;
+        if (back) _goPrevious();
+      },
+      child: _summaryList(context, s, reviewed, good, cs, skipped),
+    );
+  }
+
+  Widget _summaryList(BuildContext context, FlashcardSession s, int reviewed, int good, ColorScheme cs, int skipped) {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -658,8 +746,26 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               ),
           ],
         ),
+        if (skipped > 0) ...[
+          const SizedBox(height: 16),
+          Text(
+            widget.kind == SessionKind.learnNew
+                ? '$skipped từ bạn vuốt qua chưa chấm – chúng vẫn nằm trong danh sách từ mới.'
+                : '$skipped từ bạn vuốt qua chưa chấm (không lưu kết quả).',
+            key: const ValueKey('skipped-note'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.onSurfaceVariant),
+          ),
+        ],
         const SizedBox(height: 32),
         FilledButton(onPressed: () => context.pop(), child: const Text('Về trang trước')),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          key: const ValueKey('back-to-cards'),
+          onPressed: _goPrevious,
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Xem lại thẻ trước'),
+        ),
         const SizedBox(height: 10),
         if (widget.kind == SessionKind.learnNew && !_extraOffered)
           OutlinedButton(

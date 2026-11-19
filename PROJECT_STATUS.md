@@ -12,8 +12,14 @@ _Last updated: 2026-11-19_
 | Release APK | **Built & verified**: release/IELTS_Vocabulary_Master.apk, 78,397,944 bytes, SHA-256 89f49bc4…e414, signed (v2) with local release key |
 | Device verification | Release APK installed & used offline (airplane mode) on Android 16 emulator; no physical phone available |
 
-## v1.0.2 (merged into main)
-* Swipe the flashcard left/right/up/down to flip it (tap still works).
+## v1.0.3 (main)
+* Flashcards: tap the card or "Hiện đáp án" to show the answer; swipe right = next card, swipe left =
+  previous card (vertical drags scroll). Swiping past a card does not grade it (counted as skipped);
+  a revisited graded card shows "Đã chấm" and cannot be graded twice; summary has "Xem lại thẻ trước".
+* APK: `release/IELTS_Vocabulary_Master_v1.0.3.apk` (versionCode 4, same signing key).
+
+## v1.0.2
+* (superseded) swipe in any direction flipped the card.
 * Choose the number of cards/questions before: topic "Học chủ đề", topic Flashcard, topic Quiz,
   random flashcards, difficult-word review, favourites review (5/10/15/20/30/50, custom 1–200, or "Tất cả").
 * APK: `release/IELTS_Vocabulary_Master_v1.0.2.apk` (versionCode 3, same signing key).
