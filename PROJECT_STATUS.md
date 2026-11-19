@@ -12,9 +12,17 @@ _Last updated: 2026-11-19_
 | Release APK | **Built & verified**: release/IELTS_Vocabulary_Master.apk, 78,397,944 bytes, SHA-256 89f49bc4…e414, signed (v2) with local release key |
 | Device verification | Release APK installed & used offline (airplane mode) on Android 16 emulator; no physical phone available |
 
-## v1.0.3 (main)
-* Flashcards: tap the card or "Hiện đáp án" to show the answer; swipe right = next card, swipe left =
-  previous card (vertical drags scroll). Swiping past a card does not grade it (counted as skipped);
+## v1.0.4 (main)
+* Swipe direction corrected: swipe LEFT = next card, swipe RIGHT = previous card.
+* Card-deck animation: the top card follows the finger with a slight tilt (pivot below the card),
+  flies off with a light spin when released past ~22% of the width (or a fast fling); the next /
+  previous card waits underneath and grows into place; short drags spring back (elastic); the first
+  card rubber-bands to the right. Grading uses the same fly-off; the session advances immediately.
+* APK: `release/IELTS_Vocabulary_Master_v1.0.4.apk` (versionCode 5, same signing key).
+
+## v1.0.3
+* Flashcards: tap the card or "Hiện đáp án" to show the answer; swipe = navigate (direction swapped
+  in 1.0.4; vertical drags scroll). Swiping past a card does not grade it (counted as skipped);
   a revisited graded card shows "Đã chấm" and cannot be graded twice; summary has "Xem lại thẻ trước".
 * APK: `release/IELTS_Vocabulary_Master_v1.0.3.apk` (versionCode 4, same signing key).
 

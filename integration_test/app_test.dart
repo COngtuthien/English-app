@@ -72,11 +72,11 @@ void main() {
     expect(counter(), startsWith('2/'));
     expect(find.byKey(const ValueKey('grade-good')), findsNothing);
     await tester.pump(const Duration(milliseconds: 500)); // let the card transition finish
-    // swipe left -> back to card 1 (already graded), swipe right -> card 2 again
-    await tester.fling(find.byKey(const ValueKey('flash-card')).last, const Offset(-300, 0), 1200);
+    // swipe right -> back to card 1 (already graded), swipe left -> card 2 again
+    await tester.fling(find.byKey(const ValueKey('flash-card')).last, const Offset(300, 0), 1200);
     await tester.pump(const Duration(milliseconds: 600));
     expect(counter(), startsWith('1/'));
-    await tester.fling(find.byKey(const ValueKey('flash-card')).last, const Offset(300, 0), 1200);
+    await tester.fling(find.byKey(const ValueKey('flash-card')).last, const Offset(-300, 0), 1200);
     await tester.pump(const Duration(milliseconds: 600));
     expect(counter(), startsWith('2/'));
     await tester.tap(find.byKey(const ValueKey('flash-card')).last); // tap reveals the answer

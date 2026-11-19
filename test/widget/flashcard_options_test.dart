@@ -51,11 +51,11 @@ void main() {
       tester.widgetList<Text>(find.byType(Text)).where((x) => (x.style?.fontSize ?? 0) == 34).last.data!;
   Finder card() => find.byKey(const ValueKey('flash-card')).last;
 
-  testWidgets('tap reveals; swipe right = next card, swipe left = previous card; vertical swipe does nothing', (tester) async {
+  testWidgets('tap reveals; swipe left = next card, swipe right = previous card; vertical swipe does nothing', (tester) async {
     phone(tester);
     await tester.pumpWidget(session(const FlashcardSessionScreen(kind: SessionKind.learnNew, count: 3)));
     await pumpUntil(tester, find.text('Hiện đáp án'));
-    expect(find.text('Vuốt phải: thẻ tiếp'), findsOneWidget);
+    expect(find.text('Vuốt trái: thẻ tiếp'), findsOneWidget);
     final first = headword(tester);
 
     // tap the card -> answer shown
@@ -77,8 +77,14 @@ void main() {
     expect(counter(tester), '1/3');
     expect(find.byKey(const ValueKey('grade-good')), findsOneWidget);
 
-    // swipe right -> next card, face-down, nothing saved
-    await tester.fling(card(), const Offset(300, 0), 1200);
+    // a short, slow drag springs back to the same card
+    await tester.timedDrag(card(), const Offset(-40, 0), const Duration(milliseconds: 600));
+    await pumpFor(tester, 800);
+    expect(counter(tester), '1/3');
+    expect(find.byKey(const ValueKey('grade-good')), findsOneWidget, reason: 'still the same revealed card');
+
+    // swipe left -> next card, face-down, nothing saved
+    await tester.fling(card(), const Offset(-300, 0), 1200);
     await pumpFor(tester, 600);
     expect(counter(tester), '2/3');
     expect(find.text('Hiện đáp án'), findsOneWidget);
@@ -86,15 +92,15 @@ void main() {
     expect(second, isNot(first));
     expect(await t.db.db.query('review_history'), isEmpty);
 
-    // swipe left -> back to the first card
-    await tester.fling(card(), const Offset(-300, 0), 1200);
+    // swipe right -> back to the first card
+    await tester.fling(card(), const Offset(300, 0), 1200);
     await pumpFor(tester, 600);
     expect(counter(tester), '1/3');
     expect(headword(tester), first);
     expect(find.text('Hiện đáp án'), findsOneWidget);
 
-    // swipe left on the first card stays on the first card
-    await tester.fling(card(), const Offset(-300, 0), 1200);
+    // swipe right on the first card stays on the first card
+    await tester.fling(card(), const Offset(300, 0), 1200);
     await pumpFor(tester, 600);
     expect(counter(tester), '1/3');
     expect(find.text('Đây là thẻ đầu tiên'), findsOneWidget);
@@ -110,7 +116,7 @@ void main() {
     await pumpFor(tester);
     expect(counter(tester), '2/3');
 
-    await tester.fling(card(), const Offset(-300, 0), 1200);
+    await tester.fling(card(), const Offset(300, 0), 1200);
     await pumpFor(tester, 600);
     expect(counter(tester), '1/3');
     await tester.tap(find.text('Hiện đáp án'));
@@ -129,7 +135,7 @@ void main() {
     await pumpFor(tester, 500);
     await tester.tap(find.byKey(const ValueKey('grade-easy'))); // card 1 graded
     await pumpFor(tester);
-    await tester.fling(card(), const Offset(300, 0), 1200); // card 2 skipped
+    await tester.fling(card(), const Offset(-300, 0), 1200); // card 2 skipped
     await pumpFor(tester, 600);
     expect(find.text('Hoàn thành phiên học!'), findsOneWidget);
     expect(find.byKey(const ValueKey('skipped-note')), findsOneWidget);

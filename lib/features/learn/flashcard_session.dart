@@ -55,6 +55,10 @@ class FlashcardSession {
   bool get canGoBack => _pos > 0;
   SessionItem? get current => isFinished ? null : _queue[_pos];
   SessionItem? get next => _pos + 1 < _queue.length ? _queue[_pos + 1] : null;
+  SessionItem? get previousItem => _pos > 0 && _pos - 1 < _queue.length ? _queue[_pos - 1] : null;
+
+  /// Whether the card at [atPosition] can be graded right now (revealed, not graded yet).
+  bool canGrade(int atPosition) => !isFinished && atPosition == _pos && _revealed && !_queue[_pos].isGraded;
   int get uniqueWords => _queue.map((i) => i.entry.id).toSet().length;
   int get totalGraded => tally.values.fold(0, (a, b) => a + b);
 

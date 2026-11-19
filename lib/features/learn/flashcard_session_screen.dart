@@ -45,7 +45,7 @@ class FlashcardSessionScreen extends ConsumerStatefulWidget {
   ConsumerState<FlashcardSessionScreen> createState() => _FlashcardSessionScreenState();
 }
 
-class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen> {
+class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen> with TickerProviderStateMixin {
   FlashcardSession _session = FlashcardSession(const []);
   final Map<int, EntryDetail> _details = {};
   bool _loading = true;
@@ -77,7 +77,15 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     _learning = ref.read(learningRepoProvider);
     _achievements = ref.read(achievementRepoProvider);
     _dataVersion = ref.read(dataVersionProvider.notifier);
+    _initDeck();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _spring.dispose();
+    _fly.dispose();
+    super.dispose();
   }
 
   Future<List<EntrySummary>> _fetch({int extra = 0}) async {
@@ -159,10 +167,10 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     return f;
   }
 
-  FlashMode _effectiveMode() {
-    final cur = _session.current;
-    if (cur == null) return _mode;
-    if (_mode == FlashMode.cloze && _clozeFor(cur.entry) == null) return FlashMode.enToVi;
+  FlashMode _effectiveMode([EntrySummary? e]) {
+    final entry = e ?? _session.current?.entry;
+    if (entry == null) return _mode;
+    if (_mode == FlashMode.cloze && _clozeFor(entry) == null) return FlashMode.enToVi;
     return _mode;
   }
 
@@ -182,33 +190,102 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
 
   void _toggleFlip() => setState(_session.toggleFlip);
 
-  // Horizontal swipes navigate the deck: swipe right -> next card, swipe left -> previous card.
-  // (Tap / "Hiện đáp án" reveals the answer; vertical drags are left to scrolling.)
-  double _dragDx = 0;
-  static const double _swipeDistance = 60;
-  static const double _swipeVelocity = 400;
+  // ---------------------------------------------------------------- swipe deck
+  // Swipe LEFT -> next card, swipe RIGHT -> previous card (tap / "Hiện đáp án" reveals the answer;
+  // vertical drags are left to scrolling). The top card follows the finger with a slight tilt, then
+  // flies off with a light spin while the destination card, waiting underneath like a deck, grows
+  // into place. A short drag springs back.
+  static const double _swipeFraction = 0.22; // of the card width
+  static const double _swipeVelocity = 650; // px/s
+  static const double _maxTilt = 0.30; // radians at one card-width of travel
+  static const Duration _flyDuration = Duration(milliseconds: 260);
 
-  /// Horizontal offset the incoming card slides in from (follows the finger direction).
-  double _enterFrom = 0.25;
+  /// Springs a released (too short) drag back to the centre.
+  late final AnimationController _spring;
 
-  void _onSwipeEnd(DragEndDetails d) {
+  /// Flies the outgoing card ("ghost") off-screen while the new card grows into place. The
+  /// session itself has already moved on, so the UI never waits for the animation.
+  late final AnimationController _fly;
+
+  double _dragX = 0; // current horizontal offset of the top card (px)
+  double _springFrom = 0;
+  double _summaryDx = 0;
+  double _cardWidth = 360;
+
+  SessionItem? _ghost; // card flying away
+  bool _ghostRevealed = false;
+  int _ghostPos = -1;
+  double _ghostFrom = 0;
+  double _ghostTo = 0;
+  double _enterScale = 1; // scale the new top card grows from
+
+  void _initDeck() {
+    _spring = AnimationController(vsync: this, duration: const Duration(milliseconds: 450))
+      ..addListener(() {
+        if (mounted) setState(() => _dragX = _springFrom * (1 - Curves.elasticOut.transform(_spring.value)));
+      });
+    _fly = AnimationController(vsync: this, duration: _flyDuration)
+      ..addListener(() {
+        if (mounted) setState(() {});
+      })
+      ..addStatusListener((s) {
+        if (s == AnimationStatus.completed && mounted) setState(() => _ghost = null);
+      });
+  }
+
+  bool get _canSwipePrevious => _session.canGoBack;
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_spring.isAnimating) _spring.stop();
+    var x = _dragX + d.delta.dx;
+    // rubber band when there is no previous card (first card, dragging right)
+    if (x > 0 && !_canSwipePrevious) x = _dragX + d.delta.dx * 0.25;
+    setState(() => _dragX = x);
+  }
+
+  void _onDragEnd(DragEndDetails d) {
     final vx = d.velocity.pixelsPerSecond.dx;
-    final dx = _dragDx;
-    _dragDx = 0;
-    final right = dx >= _swipeDistance || vx >= _swipeVelocity;
-    final left = dx <= -_swipeDistance || vx <= -_swipeVelocity;
-    if (right && !left) {
-      _goNext();
-    } else if (left && !right) {
-      _goPrevious();
+    final threshold = _cardWidth * _swipeFraction;
+    final wantsNext = _dragX < -threshold || (vx < -_swipeVelocity && _dragX < 0);
+    final wantsPrev = _dragX > threshold || (vx > _swipeVelocity && _dragX > 0);
+    if (wantsNext) {
+      _flyOut(-1, () => _session.goNext());
+    } else if (wantsPrev && _canSwipePrevious) {
+      _flyOut(1, () => _session.goPrevious());
+    } else {
+      if (wantsPrev) {
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Đây là thẻ đầu tiên'), duration: Duration(seconds: 1)));
+      }
+      _springBack();
     }
   }
 
-  void _goNext() {
+  void _springBack() {
+    _springFrom = _dragX;
+    _spring.forward(from: 0);
+  }
+
+  /// Moves the session with [commit] right away, and lets the card that was on top fly off-screen
+  /// ([direction] -1 = to the left / next, +1 = to the right / previous) with a light spin, while
+  /// the new top card grows from its place in the deck.
+  void _flyOut(int direction, void Function() commit) {
+    final item = _session.current;
+    _spring.stop();
     setState(() {
-      _enterFrom = -0.25; // swipe right: the next card comes in from the left
-      _session.goNext();
+      if (item != null) {
+        _ghost = item;
+        _ghostPos = _session.position;
+        _ghostRevealed = _session.revealed;
+        _ghostFrom = _dragX;
+        _ghostTo = direction * _cardWidth * 1.5;
+        _enterScale = 0.92 + 0.08 * (_dragX.abs() / _cardWidth).clamp(0.0, 1.0);
+      }
+      commit();
+      _dragX = 0;
     });
+    _fly.forward(from: 0);
     if (!_session.isFinished) unawaited(_prepareCurrent());
   }
 
@@ -219,31 +296,33 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
         ..showSnackBar(const SnackBar(content: Text('Đây là thẻ đầu tiên'), duration: Duration(seconds: 1)));
       return;
     }
-    setState(() {
-      _enterFrom = 0.25; // swipe left: the previous card comes in from the right
-      _session.goPrevious();
-    });
-    unawaited(_prepareCurrent());
+    if (_session.isFinished) {
+      // from the summary: no card on screen to fly, just show the last card
+      setState(_session.goPrevious);
+      unawaited(_prepareCurrent());
+      return;
+    }
+    _flyOut(1, () => _session.goPrevious());
   }
 
-  /// Grades the card shown at [atPosition]: advances synchronously (next card, face-down), then
-  /// stores the review in the background. Duplicate taps for the same position are ignored.
+  /// Grades the card shown at [atPosition]: the session advances at once (the graded card flies off
+  /// to the left, like "next") and the review is stored in the background. Duplicate taps are ignored.
   Future<void> _rate(Grade g, int atPosition) async {
+    if (!_session.canGrade(atPosition)) return;
     if (_previewPos != atPosition && _preparing != null) {
       await _preparing; // the preview decides whether the card comes back in this session
     }
-    if (!mounted) return;
+    if (!mounted || !_session.canGrade(atPosition)) return;
     final interval = _previewPos == atPosition ? _preview[g] : null;
     final durationMs = DateTime.now().difference(_shownAt).inMilliseconds.clamp(0, 600000);
-    final result = _session.grade(g, atPosition: atPosition, nextInterval: interval ?? const Duration(days: 1));
-    if (result == null) return; // duplicate / not revealed / finished
-    setState(() {
-      _enterFrom = 0.25;
+    GradeResult? result;
+    _flyOut(-1, () {
+      result = _session.grade(g, atPosition: atPosition, nextInterval: interval ?? const Duration(days: 1));
       _preview = {};
       _previewPos = -1;
     });
-    _persist(result, durationMs);
-    if (!_session.isFinished) unawaited(_prepareCurrent());
+    if (result == null) return;
+    _persist(result!, durationMs);
   }
 
   void _persist(GradeResult r, int durationMs) {
@@ -339,7 +418,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
-                  'Vuốt trái: thẻ trước',
+                  'Vuốt trái: thẻ tiếp',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: cs.outline, fontSize: 12),
                 ),
@@ -347,7 +426,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Vuốt phải: thẻ tiếp',
+                  'Vuốt phải: thẻ trước',
                   textAlign: TextAlign.end,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: cs.outline, fontSize: 12),
@@ -366,35 +445,109 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 280),
-              // The outgoing card is still painted while it fades out, but it must not receive taps.
-              layoutBuilder: (current, previous) => Stack(
-                alignment: Alignment.center,
-                children: [
-                  for (final p in previous) IgnorePointer(child: p),
-                  ?current,
-                ],
-              ),
-              transitionBuilder: (child, anim) => SlideTransition(
-                position: Tween(
-                  begin: Offset(_enterFrom, 0),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-                child: FadeTransition(opacity: anim, child: child),
-              ),
-              child: KeyedSubtree(
-                key: ValueKey('card-$pos-${item.entry.id}'),
-                child: GestureDetector(
-                  key: const ValueKey('flash-card'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _toggleFlip,
-                  onHorizontalDragStart: (_) => _dragDx = 0,
-                  onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
-                  onHorizontalDragEnd: _onSwipeEnd,
-                  child: FlipCard(flipped: revealed, front: _front(context, item.entry), back: _back(context, item.entry)),
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, box) {
+                _cardWidth = box.maxWidth;
+                final t = (_dragX.abs() / _cardWidth).clamp(0.0, 1.0);
+                // the card waiting underneath: next card when going left (or at rest), previous
+                // card when going right
+                final SessionItem? under = _dragX > 0 ? _session.previousItem : _session.next;
+                final Widget? underCard = under != null ? _front(context, under.entry) : (_dragX < 0 ? _finishCard(context) : null);
+                final scale = 0.92 + 0.08 * Curves.easeOut.transform(t);
+                final ghost = _ghost;
+                final flyV = _fly.value;
+                // the new top card grows from its place in the deck while the old one flies away
+                final topScale = ghost != null ? _enterScale + (1 - _enterScale) * Curves.easeOutBack.transform(flyV) : 1.0;
+                final ghostX = _ghostFrom + (_ghostTo - _ghostFrom) * Curves.easeInCubic.transform(flyV);
+                final ghostT = (ghostX.abs() / _cardWidth).clamp(0.0, 1.5);
+                return Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    if (underCard != null)
+                      IgnorePointer(
+                        child: Transform.translate(
+                          offset: Offset(0, 14 * (1 - t)),
+                          child: Transform.scale(
+                            scale: scale,
+                            child: Opacity(opacity: 0.55 + 0.45 * t, child: underCard),
+                          ),
+                        ),
+                      ),
+                    // the top card follows the finger, lifts a little and tilts around a point
+                    // below the card, so it swings off in a light spin
+                    Transform.translate(
+                      offset: Offset(_dragX, -18 * t),
+                      child: Transform.rotate(
+                        angle: (_dragX / _cardWidth) * _maxTilt,
+                        alignment: const Alignment(0, 2.2),
+                        child: Transform.scale(
+                          scale: topScale,
+                          child: KeyedSubtree(
+                            key: ValueKey('card-$pos-${item.entry.id}'),
+                            child: GestureDetector(
+                              key: const ValueKey('flash-card'),
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _toggleFlip,
+                              onHorizontalDragUpdate: _onDragUpdate,
+                              onHorizontalDragEnd: _onDragEnd,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(28),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.06 + 0.10 * t),
+                                      blurRadius: 12 + 18 * t,
+                                      offset: Offset(0, 6 + 8 * t),
+                                    ),
+                                  ],
+                                ),
+                                child: FlipCard(flipped: revealed, front: _front(context, item.entry), back: _back(context, item.entry)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // the card that was just swiped / graded, flying off with a light spin
+                    if (ghost != null)
+                      IgnorePointer(
+                        key: ValueKey('ghost-$_ghostPos'),
+                        child: Transform.translate(
+                          offset: Offset(ghostX, -18 * ghostT.clamp(0.0, 1.0) - 30 * flyV),
+                          child: Transform.rotate(
+                            angle: (ghostX / _cardWidth) * _maxTilt * 1.2,
+                            alignment: const Alignment(0, 2.2),
+                            child: Opacity(
+                              opacity: (1 - 0.6 * flyV).clamp(0.0, 1.0),
+                              child: FlipCard(
+                                flipped: _ghostRevealed,
+                                front: _front(context, ghost.entry),
+                                back: _back(context, ghost.entry),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    // direction badge while dragging
+                    if (t > 0.08)
+                      Positioned(
+                        top: 18,
+                        left: _dragX > 0 ? 18 : null,
+                        right: _dragX < 0 ? 18 : null,
+                        child: IgnorePointer(
+                          child: Opacity(
+                            opacity: (t * 3).clamp(0.0, 1.0),
+                            child: Pill(
+                              _dragX < 0 ? (under == null ? 'Kết thúc' : 'Thẻ tiếp') : (under == null ? 'Thẻ đầu tiên' : 'Thẻ trước'),
+                              icon: _dragX < 0 ? Icons.skip_next_rounded : Icons.undo_rounded,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -407,7 +560,7 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(color: cs.primary.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(16)),
                   child: Text(
-                    'Bạn đã chấm thẻ này: ${item.grade!.labelVi}. Vuốt sang phải để sang thẻ tiếp theo.',
+                    'Bạn đã chấm thẻ này: ${item.grade!.labelVi}. Vuốt sang trái để sang thẻ tiếp theo.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
                   ),
@@ -474,8 +627,25 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     );
   }
 
+  /// Placeholder shown under the last card while it is swiped away (the summary comes next).
+  Widget _finishCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return _CardFace(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.emoji_events_rounded, size: 56, color: cs.primary),
+            const SizedBox(height: 12),
+            Text('Kết thúc phiên học', style: Theme.of(context).textTheme.titleLarge),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _front(BuildContext context, EntrySummary e) {
-    final mode = _effectiveMode();
+    final mode = _effectiveMode(e);
     final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final accent = ref.watch(settingsProvider.select((s) => s.accent));
@@ -682,12 +852,12 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     final cs = Theme.of(context).colorScheme;
     final skipped = s.skippedEntries.length;
     return GestureDetector(
-      // swipe left on the summary goes back to the last card
-      onHorizontalDragStart: (_) => _dragDx = 0,
-      onHorizontalDragUpdate: (d) => _dragDx += d.delta.dx,
+      // swipe right on the summary goes back to the last card
+      onHorizontalDragStart: (_) => _summaryDx = 0,
+      onHorizontalDragUpdate: (d) => _summaryDx += d.delta.dx,
       onHorizontalDragEnd: (d) {
-        final back = _dragDx <= -_swipeDistance || d.velocity.pixelsPerSecond.dx <= -_swipeVelocity;
-        _dragDx = 0;
+        final back = _summaryDx >= 60 || d.velocity.pixelsPerSecond.dx >= _swipeVelocity;
+        _summaryDx = 0;
         if (back) _goPrevious();
       },
       child: _summaryList(context, s, reviewed, good, cs, skipped),

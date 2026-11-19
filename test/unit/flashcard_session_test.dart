@@ -115,7 +115,7 @@ void main() {
     }
   });
 
-  test('swipe right (goNext) moves forward without grading; past the last card finishes', () {
+  test('swipe left (goNext) moves forward without grading; past the last card finishes', () {
     final s = FlashcardSession([w(1), w(2)]);
     s.reveal();
     expect(s.goNext(), isTrue);
@@ -128,7 +128,7 @@ void main() {
     expect(s.skippedEntries, {1, 2});
   });
 
-  test('swipe left (goPrevious) goes back; not before the first card', () {
+  test('swipe right (goPrevious) goes back; not before the first card', () {
     final s = FlashcardSession([w(1), w(2), w(3)]);
     expect(s.canGoBack, isFalse);
     expect(s.goPrevious(), isFalse);

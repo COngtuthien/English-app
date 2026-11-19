@@ -2,3 +2,4 @@
 c6e7a8ffc8557453befaf43bf133ede6cc06cf0502e3d199c4279b8ecd01aa42  IELTS_Vocabulary_Master_flashcard_fix.apk  (78,398,056 bytes)
 24b23abb058c6689879d2dab393ecdf87de0f782d70a7f7ba3aeb58eb988fafb  IELTS_Vocabulary_Master_v1.0.2.apk  (78,414,440 bytes)
 88c966e153d8c999fb56d32d163feb10b96df5ca5352466707b0e96b2afeb6a7  IELTS_Vocabulary_Master_v1.0.3.apk  (78,431,092 bytes)
+f69026abf581efe38ae7f0477bd015d9db91dcf391d7a1702857943a4a778f2f  IELTS_Vocabulary_Master_v1.0.4.apk  (78,578,684 bytes)
