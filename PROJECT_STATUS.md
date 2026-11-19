@@ -12,6 +12,11 @@ _Last updated: 2026-11-19_
 | Release APK | **Built & verified**: release/IELTS_Vocabulary_Master.apk, 78,397,944 bytes, SHA-256 89f49bc4…e414, signed (v2) with local release key |
 | Device verification | Release APK installed & used offline (airplane mode) on Android 16 emulator; no physical phone available |
 
+## GitHub Releases (published 2026-11-19)
+* v1.0.0–v1.0.5 published on GitHub Releases with `IELTS_Vocabulary_Master_<tag>.apk` + `.sha256`;
+  v1.0.5 is *Latest*. Every asset was re-downloaded anonymously and hash-checked.
+* Process for future releases: RELEASING.md + `scripts/publish_release.ps1` (needs `gh auth login`).
+
 ## v1.0.5 (main) – iOS support
 * `ios/` Runner project: bundle id `com.ieltsvocabulary.master`, iOS 14.0+ (required by
   file_picker_darwin), portrait, display name "IELTS Vocab", Files-app access for backups,

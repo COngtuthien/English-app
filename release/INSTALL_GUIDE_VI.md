@@ -1,9 +1,12 @@
 # Hướng dẫn cài đặt IELTS Vocabulary Master
 
-## 1. Chép file APK sang điện thoại
-File cài đặt: **`IELTS_Vocabulary_Master.apk`** (trong thư mục `release/`).
+## 1. Tải file APK về điện thoại
+**Cách nhanh nhất:** mở trình duyệt trên điện thoại và tải bản mới nhất từ GitHub Releases:
+<https://github.com/COngtuthien/English-app/releases/latest>
+(chạm vào file `IELTS_Vocabulary_Master_vX.Y.Z.apk` trong mục *Assets*). Các phiên bản cũ vẫn tải được tại
+<https://github.com/COngtuthien/English-app/releases>. Mỗi bản có kèm file `.sha256` để kiểm tra file không bị hỏng.
 
-Chọn một cách:
+Hoặc chép file APK từ máy tính sang điện thoại, chọn một cách:
 * **Cáp USB:** cắm điện thoại vào máy tính → chọn chế độ *Truyền tệp (File transfer)* → chép file APK vào thư mục `Download` của điện thoại.
 * **Zalo / Telegram / email gửi cho chính mình** rồi tải file về điện thoại.
 * **Thẻ nhớ / USB OTG**.
@@ -12,7 +15,7 @@ Có thể kiểm tra file không bị hỏng bằng mã SHA-256 trong `SHA256.tx
 
 ## 2. Cho phép cài ứng dụng từ nguồn ngoài
 Android chỉ hỏi một lần cho ứng dụng dùng để mở file (ví dụ *Files*, *Tệp của tôi*, *Chrome*, *Zalo*):
-1. Mở ứng dụng quản lý tệp → vào `Download` → chạm vào `IELTS_Vocabulary_Master.apk`.
+1. Mở ứng dụng quản lý tệp → vào `Download` → chạm vào file APK vừa tải (`IELTS_Vocabulary_Master_vX.Y.Z.apk`).
 2. Nếu xuất hiện thông báo *"Vì lý do bảo mật, điện thoại không được phép cài đặt ứng dụng không rõ nguồn gốc"*:
    chạm **Cài đặt (Settings)** → bật **Cho phép từ nguồn này (Allow from this source)** → quay lại.
 3. Chạm **Cài đặt (Install)**.

@@ -13,8 +13,6 @@
 ![Offline](https://img.shields.io/badge/internet-not%20required-16A34A)
 ![Data licence](https://img.shields.io/badge/data-CC%20BY--SA%204.0-lightgrey)
 
-<!-- download:start -->
-<!-- download:end -->
 
 [Features](#-features) ·
 [Screenshots](#-screenshots) ·
@@ -27,6 +25,31 @@
 [Releasing](RELEASING.md)
 
 </div>
+
+<!-- download:start -->
+<p align="center">
+  <a href="https://github.com/COngtuthien/English-app/releases/download/v1.0.5/IELTS_Vocabulary_Master_v1.0.5.apk"><img src="https://img.shields.io/badge/Download%20Latest%20Android%20APK-v1.0.5-16A34A?style=for-the-badge&logo=android&logoColor=white" alt="Download Latest Android APK" /></a>
+</p>
+
+### Download Latest Android APK
+
+| | |
+|---|---|
+| **Latest version** | **1.0.5** (build 6) - [release notes](https://github.com/COngtuthien/English-app/releases/tag/v1.0.5) |
+| **Direct download** | [**IELTS_Vocabulary_Master_v1.0.5.apk**](https://github.com/COngtuthien/English-app/releases/download/v1.0.5/IELTS_Vocabulary_Master_v1.0.5.apk) (74.9 MB) - [SHA-256 checksum](https://github.com/COngtuthien/English-app/releases/download/v1.0.5/IELTS_Vocabulary_Master_v1.0.5.apk.sha256) |
+| **Android** | Android 7.0 (API 24) or newer, phones and tablets |
+| **Offline** | Works 100% offline after installation - no internet permission, no account, no ads |
+| **Older versions** | [All releases](https://github.com/COngtuthien/English-app/releases) - every version keeps its own APK |
+
+**How to install on an Android phone**
+1. Open the **Direct download** link on your phone and download the APK.
+2. Open the downloaded file. If Android asks, allow *Install unknown apps* for your browser or file manager.
+3. Tap **Install**. Updating over an older version keeps your learning progress (same signing key).
+4. Optional: compare the file's SHA-256 with the checksum above.
+
+Vietnamese guide: [release/INSTALL_GUIDE_VI.md](release/INSTALL_GUIDE_VI.md)
+<!-- download:end -->
+
 
 ---
 

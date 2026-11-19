@@ -76,8 +76,10 @@ $Gh = $null
 if (-not $DryRun) {
   $Gh = Find-Tool 'gh' @("$env:ProgramFiles\GitHub CLI\gh.exe", "$env:LOCALAPPDATA\Programs\gh\bin\gh.exe")
   if (-not $Gh) { Fail 'GitHub CLI (gh) not found. Install it (winget install GitHub.cli) and run: gh auth login' }
+  $prevEap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   & $Gh auth status --hostname github.com *> $null
-  if ($LASTEXITCODE -ne 0) { Fail 'gh is not authenticated. Run: gh auth login' }
+  $authExit = $LASTEXITCODE; $ErrorActionPreference = $prevEap
+  if ($authExit -ne 0) { Fail 'gh is not authenticated. Run: gh auth login' }
 }
 
 function Get-ChangelogSection([string]$version) {
@@ -152,13 +154,17 @@ Verify on Windows: ``Get-FileHash $($assets.Name) -Algorithm SHA256`` | macOS/Li
 function Test-PublishedAsset([string]$url, [string]$expectedSha) {
   $tmp = Join-Path $env:TEMP ("asset_" + [guid]::NewGuid().ToString('N'))
   try {
-    Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $tmp -Headers @{ 'User-Agent' = 'release-verify' }
+    Invoke-WebRequest -ErrorAction Stop -UseBasicParsing -Uri $url -OutFile $tmp -Headers @{ 'User-Agent' = 'release-verify' }
     $actual = (Get-FileHash $tmp -Algorithm SHA256).Hash.ToLower()
     return ($actual -eq $expectedSha)
   } finally { Remove-Item $tmp -ErrorAction SilentlyContinue }
 }
 
 function Publish($info, [bool]$markLatest) {
+  # Windows PowerShell 5.1 turns any stderr line of a native command into a terminating error when
+  # ErrorActionPreference is Stop (gh prints e.g. "release not found" on stderr). Native calls in this
+  # function are checked through $LASTEXITCODE instead; web requests use -ErrorAction Stop explicitly.
+  $ErrorActionPreference = 'Continue'
   Test-RemoteTag $info.Tag
   $assets = Stage-Assets $info
   $notes = Get-Notes $info $assets
@@ -188,9 +194,15 @@ function Publish($info, [bool]$markLatest) {
   if ($rel.isDraft) { Fail "$($info.Tag): release is a draft" }
   $apkAsset = $rel.assets | Where-Object { $_.name -eq $assets.Name }
   if (-not $apkAsset) { Fail "$($info.Tag): APK asset missing after upload" }
-  if (-not (Test-PublishedAsset $apkAsset.url $info.Sha256)) { Fail "$($info.Tag): downloaded APK hash does not match" }
+  if ([int64]$apkAsset.size -ne [int64]$info.Size) { Fail "$($info.Tag): uploaded size $($apkAsset.size) != local $($info.Size)" }
+  # verify the public link exactly as users will click it (browser download URL, anonymous request)
+  $publicUrl = "https://github.com/$Repo/releases/download/$($info.Tag)/$($assets.Name)"
+  if (-not (Test-PublishedAsset $publicUrl $info.Sha256)) { Fail "$($info.Tag): downloaded APK hash does not match ($publicUrl)" }
+  $shaText = (Invoke-WebRequest -ErrorAction Stop -UseBasicParsing -Uri "$publicUrl.sha256" -Headers @{ 'User-Agent' = 'release-verify' }).Content
+  if ($shaText -is [byte[]]) { $shaText = [Text.Encoding]::UTF8.GetString($shaText) }
+  if ($shaText -notmatch [regex]::Escape($info.Sha256)) { Fail "$($info.Tag): published .sha256 file does not contain the expected hash" }
   Info "  Published and verified: $($rel.url)"
-  Info "  APK: $($apkAsset.url)"
+  Info "  APK: $publicUrl ($($info.Size) bytes, SHA-256 OK after re-download)"
 }
 
 function Update-Readme($info) {
@@ -204,10 +216,23 @@ function Update-Readme($info) {
   <a href="$apkUrl"><img src="https://img.shields.io/badge/Download%20Latest%20Android%20APK-v$($info.Version)-16A34A?style=for-the-badge&logo=android&logoColor=white" alt="Download Latest Android APK" /></a>
 </p>
 
-**[Download Latest Android APK ($($info.Tag), $([math]::Round($info.Size / 1MB, 1)) MB)]($apkUrl)**  |
-[SHA-256]($apkUrl.sha256)  |
-[Release notes](https://github.com/$Repo/releases/tag/$($info.Tag))  |
-[All releases](https://github.com/$Repo/releases)
+### Download Latest Android APK
+
+| | |
+|---|---|
+| **Latest version** | **$($info.Version)** (build $($info.VersionCode)) - [release notes](https://github.com/$Repo/releases/tag/$($info.Tag)) |
+| **Direct download** | [**$name**]($apkUrl) ($([math]::Round($info.Size / 1MB, 1)) MB) - [SHA-256 checksum]($apkUrl.sha256) |
+| **Android** | Android 7.0 (API 24) or newer, phones and tablets |
+| **Offline** | Works 100% offline after installation - no internet permission, no account, no ads |
+| **Older versions** | [All releases](https://github.com/$Repo/releases) - every version keeps its own APK |
+
+**How to install on an Android phone**
+1. Open the **Direct download** link on your phone and download the APK.
+2. Open the downloaded file. If Android asks, allow *Install unknown apps* for your browser or file manager.
+3. Tap **Install**. Updating over an older version keeps your learning progress (same signing key).
+4. Optional: compare the file's SHA-256 with the checksum above.
+
+Vietnamese guide: [release/INSTALL_GUIDE_VI.md](release/INSTALL_GUIDE_VI.md)
 <!-- download:end -->
 "@
   if ($DryRun) {
@@ -223,11 +248,11 @@ function Update-Readme($info) {
   Info "README download block now points to $apkUrl"
   if (-not $DryRun) {
     foreach ($u in @($apkUrl, "$apkUrl.sha256", "https://github.com/$Repo/releases/tag/$($info.Tag)")) {
-      $r = Invoke-WebRequest -UseBasicParsing -Uri $u -Method Head -Headers @{ 'User-Agent' = 'release-verify' }
+      $r = Invoke-WebRequest -ErrorAction Stop -UseBasicParsing -Uri $u -Method Head -Headers @{ 'User-Agent' = 'release-verify' }
       if ($r.StatusCode -ne 200) { Fail "link check failed ($($r.StatusCode)): $u" }
       Info "  link OK: $u"
     }
-    $latest = Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/$Repo/releases/latest" -Headers @{ 'User-Agent' = 'release-verify' }
+    $latest = Invoke-WebRequest -ErrorAction Stop -UseBasicParsing -Uri "https://github.com/$Repo/releases/latest" -Headers @{ 'User-Agent' = 'release-verify' }
     if ($latest.BaseResponse.ResponseUri.AbsoluteUri -notlike "*/releases/tag/$($info.Tag)") {
       Fail "releases/latest resolves to $($latest.BaseResponse.ResponseUri.AbsoluteUri), expected $($info.Tag)"
     }
