@@ -28,7 +28,12 @@ jobs:
         run: flutter pub get
 
       - name: Build release app for iPhone
-        run: flutter build ios --release --no-codesign
+        run: |
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee build.log || {
+            echo "::error title=flutter build ios failed::$(tail -n 80 build.log | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
 
       - name: Verify bundle
         run: |
@@ -91,7 +96,12 @@ jobs:
       # Same end-to-end journey as on Android: database copy, FTS4 search with the iOS system SQLite,
       # flashcards (tap/swipe/grade), dictionary, restart persistence, quiz, backup/restore.
       - name: Run integration test
-        run: flutter test integration_test/app_test.dart -d ${{ steps.sim.outputs.udid }} --reporter expanded
+        run: |
+          set -o pipefail
+          flutter test integration_test/app_test.dart -d ${{ steps.sim.outputs.udid }} --reporter expanded 2>&1 | tee test.log || {
+            echo "::error title=iOS integration test failed::$(tail -n 80 test.log | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          }
 
       - name: Screenshot
         if: always()

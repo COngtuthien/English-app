@@ -470,7 +470,9 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
                           offset: Offset(0, 14 * (1 - t)),
                           child: Transform.scale(
                             scale: scale,
-                            child: Opacity(opacity: 0.55 + 0.45 * t, child: underCard),
+                            // hidden at rest (a revealed back face is shorter than the card area),
+                            // fades in as soon as the learner starts dragging
+                            child: Opacity(opacity: ((t * 6).clamp(0.0, 1.0)) * (0.55 + 0.45 * t), child: underCard),
                           ),
                         ),
                       ),
