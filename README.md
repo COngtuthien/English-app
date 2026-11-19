@@ -19,7 +19,8 @@
 [Getting started](#-getting-started) ·
 [Architecture](#-architecture) ·
 [Testing](#-testing) ·
-[Licence](#-licence--attribution)
+[Licence](#-licence--attribution) ·
+[Changelog](CHANGELOG.md)
 
 </div>
 
