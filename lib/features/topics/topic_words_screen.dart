@@ -203,6 +203,7 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       backgroundColor: Colors.white,
                       foregroundColor: AppColors.indigoDeep,
                       minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                     onPressed: () async {
                       final n = await showCountPicker(
@@ -214,7 +215,7 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       );
                       if (n != null && mounted) context.push('/learn?topic=${t.id}&count=$n');
                     },
-                    child: const Text('Học chủ đề'),
+                    child: const FittedBox(fit: BoxFit.scaleDown, child: Text('Học chủ đề', maxLines: 1, softWrap: false)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -224,6 +225,7 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white70),
                       minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                     onPressed: () async {
                       final n = await showCountPicker(
@@ -234,7 +236,7 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       );
                       if (n != null && mounted) context.push('/flashcards?kind=topic&topic=${t.id}&count=$n');
                     },
-                    child: const Text('Flashcard'),
+                    child: const FittedBox(fit: BoxFit.scaleDown, child: Text('Flashcard', maxLines: 1, softWrap: false)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -244,6 +246,7 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       foregroundColor: Colors.white,
                       side: const BorderSide(color: Colors.white70),
                       minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
                     onPressed: () async {
                       final n = await showCountPicker(
@@ -266,7 +269,7 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                         ),
                       );
                     },
-                    child: const Text('Quiz'),
+                    child: const FittedBox(fit: BoxFit.scaleDown, child: Text('Quiz', maxLines: 1, softWrap: false)),
                   ),
                 ),
               ],

@@ -31,7 +31,7 @@ jobs:
         run: |
           set -o pipefail
           flutter build ios --release --no-codesign 2>&1 | tee build.log || {
-            echo "::error title=flutter build ios failed::$(tail -n 80 build.log | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            echo "::error title=flutter build ios failed::$(grep -v -E "CDN: |Fetching podspec" build.log | tail -n 45 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 
@@ -99,7 +99,7 @@ jobs:
         run: |
           set -o pipefail
           flutter test integration_test/app_test.dart -d ${{ steps.sim.outputs.udid }} --reporter expanded 2>&1 | tee test.log || {
-            echo "::error title=iOS integration test failed::$(tail -n 80 test.log | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            echo "::error title=iOS integration test failed::$(grep -v -E "CDN: |Fetching podspec" test.log | tail -n 45 | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
             exit 1
           }
 
