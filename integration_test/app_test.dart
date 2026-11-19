@@ -13,7 +13,12 @@ Future<void> pumpUntil(WidgetTester tester, Finder finder, {Duration timeout = c
   final end = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(end)) {
     await tester.pump(const Duration(milliseconds: 100));
-    if (finder.evaluate().isNotEmpty) return;
+    if (finder.evaluate().isNotEmpty) {
+      // let page transitions finish: the Navigator ignores taps while a route is animating, and
+      // iOS (Cupertino) transitions are longer than Android ones
+      await tester.pump(const Duration(milliseconds: 700));
+      return;
+    }
   }
   throw TestFailure('Timed out waiting for $finder');
 }
