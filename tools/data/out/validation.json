@@ -1,0 +1,236 @@
+{
+  "ok": true,
+  "errors": [],
+  "checks": {
+    "empty_vietnamese": 0,
+    "empty_definition": 0,
+    "no_sentence_example": 0,
+    "no_topic": 0,
+    "bad_difficulty": 0,
+    "no_sources": 0,
+    "duplicate_keys": 0,
+    "duplicate_headword_pos": 0,
+    "fts_rows_mismatch": 0,
+    "placeholder_headwords": 0,
+    "foreign_key_violations": 0,
+    "undocumented_sources": 0,
+    "bad_writing_exercises": 0
+  },
+  "stats": {
+    "total_entries": 10657,
+    "with_vietnamese_meaning": 10657,
+    "with_english_definition": 10657,
+    "with_sentence_example": 10657,
+    "with_vietnamese_example_translation": 4554,
+    "with_ipa_uk": 9699,
+    "with_ipa_us": 9778,
+    "with_any_ipa": 9903,
+    "ipa_uk_by_source": {
+      "enwikt": 6128,
+      "ipadict": 3571
+    },
+    "ipa_us_by_source": {
+      "enwikt": 6054,
+      "ipadict": 3724
+    },
+    "with_collocations": 5651,
+    "with_synonyms": 6455,
+    "with_antonyms": 2620,
+    "with_word_family": 4679,
+    "with_usage_note": 281,
+    "with_common_mistake": 86,
+    "multi_sense_entries": 8517,
+    "rows": {
+      "vocabulary_senses": 37911,
+      "translations": 35867,
+      "examples": 43090,
+      "collocations": 17069,
+      "lexical_relations": 46773,
+      "vocabulary_topics": 14873,
+      "writing_exercises": 141,
+      "speaking_packs": 24
+    },
+    "by_cefr": {
+      "(not rated)": 2084,
+      "A1": 1043,
+      "A2": 1289,
+      "B1": 2236,
+      "B2": 2489,
+      "C1": 831,
+      "C2": 685
+    },
+    "by_cefr_source": {
+      "(none)": 2084,
+      "cefrj": 7057,
+      "octanove": 1516
+    },
+    "by_difficulty": {
+      "1": 2332,
+      "2": 2608,
+      "3": 3972,
+      "4": 1060,
+      "5": 685
+    },
+    "by_entry_type": {
+      "word": 9797,
+      "idiom": 336,
+      "phrasal_verb": 196,
+      "expression": 171,
+      "collocation": 157
+    },
+    "by_pos": {
+      "noun": 5178,
+      "adjective": 2123,
+      "verb": 1754,
+      "adverb": 662,
+      "idiom": 336,
+      "phrasal verb": 196,
+      "collocation": 157,
+      "expression": 79,
+      "preposition": 69,
+      "pronoun": 41,
+      "conjunction": 29,
+      "determiner": 29,
+      "interjection": 4
+    },
+    "vietnamese_meaning_source": {
+      "curated": 676,
+      "enwikt": 5445,
+      "viwikt": 4536
+    },
+    "definition_source": {
+      "curated": 653,
+      "enwikt": 10000,
+      "nawl": 4
+    },
+    "example_sources": {
+      "curated": 335,
+      "enwikt": 13243,
+      "tatoeba": 18944,
+      "viwikt": 10568
+    },
+    "academic_nawl_entries": 950,
+    "by_topic": {
+      "education (Education)": 83,
+      "environment (Environment)": 53,
+      "climate (Climate Change)": 51,
+      "technology (Technology)": 306,
+      "ai (Artificial Intelligence)": 29,
+      "science (Science)": 1444,
+      "healthcare (Healthcare)": 322,
+      "mental_health (Mental Health)": 33,
+      "psychology (Psychology)": 418,
+      "society (Society)": 53,
+      "culture (Culture)": 53,
+      "globalization (Globalization)": 20,
+      "economy (Economy)": 164,
+      "business (Business)": 261,
+      "employment (Employment)": 199,
+      "government (Government)": 210,
+      "politics (Politics)": 181,
+      "crime (Crime)": 96,
+      "law (Law)": 212,
+      "tourism (Tourism)": 57,
+      "transportation (Transportation)": 212,
+      "urbanization (Urbanization)": 31,
+      "housing (Housing)": 119,
+      "architecture (Architecture)": 111,
+      "agriculture (Agriculture)": 60,
+      "food (Food)": 139,
+      "family (Family)": 82,
+      "relationships (Relationships)": 57,
+      "communication (Communication)": 258,
+      "media (Media)": 159,
+      "advertising (Advertising)": 43,
+      "art (Art)": 161,
+      "music (Music)": 135,
+      "sports (Sports)": 257,
+      "wildlife (Wildlife)": 99,
+      "biodiversity (Biodiversity)": 100,
+      "energy (Energy)": 79,
+      "space (Space Exploration)": 98,
+      "research (Research)": 83,
+      "public_services (Public Services)": 31,
+      "population (Population)": 25,
+      "migration (Migration)": 23,
+      "consumerism (Consumerism)": 39,
+      "lifestyle (Lifestyle)": 584,
+      "history (History)": 80,
+      "geography (Geography)": 98,
+      "natural_resources (Natural Resources)": 45,
+      "inequality (Social Inequality)": 37,
+      "public_policy (Public Policy)": 34,
+      "sustainable_development (Sustainable Development)": 33,
+      "general (General English)": 5324,
+      "academic (Academic English)": 950,
+      "writing_task1 (Writing Task 1)": 69,
+      "writing_task2 (Writing Task 2)": 70,
+      "speaking (Speaking)": 79,
+      "listening (Listening expressions)": 20,
+      "phrasal_verbs (Phrasal verbs)": 196,
+      "idioms (Idioms & fixed expressions)": 336,
+      "collocations (Collocations)": 164,
+      "confusables (Commonly confused words)": 108
+    },
+    "topic_assignment_method": {
+      "curated": 2296,
+      "default": 5324,
+      "list": 950,
+      "type": 599,
+      "wiktionary": 5704
+    },
+    "sources": [
+      {
+        "code": "enwikt",
+        "name": "English Wiktionary (via Wiktextract / kaikki.org)",
+        "license": "CC BY-SA 4.0 (and GFDL)"
+      },
+      {
+        "code": "viwikt",
+        "name": "Vietnamese Wiktionary (via Wiktextract / kaikki.org)",
+        "license": "CC BY-SA 4.0 (and GFDL)"
+      },
+      {
+        "code": "tatoeba",
+        "name": "Tatoeba sentence corpus",
+        "license": "CC BY 2.0 FR"
+      },
+      {
+        "code": "cefrj",
+        "name": "CEFR-J Wordlist Version 1.5",
+        "license": "Free for research and commercial use with citation"
+      },
+      {
+        "code": "octanove",
+        "name": "Octanove Vocabulary Profile C1/C2 1.0",
+        "license": "CC BY-SA 4.0"
+      },
+      {
+        "code": "nawl",
+        "name": "New Academic Word List 1.2",
+        "license": "CC BY-SA 4.0"
+      },
+      {
+        "code": "ngsl",
+        "name": "New General Service List 1.2",
+        "license": "CC BY-SA 4.0"
+      },
+      {
+        "code": "ipadict",
+        "name": "ipa-dict (open-dict-data)",
+        "license": "MIT"
+      },
+      {
+        "code": "curated",
+        "name": "IELTS Vocabulary Master editorial content",
+        "license": "CC BY-SA 4.0"
+      }
+    ],
+    "meta": {
+      "content_version": "1",
+      "built_at": "2026-11-18T18:20:38Z",
+      "entry_count": "10657"
+    }
+  },
+  "placeholder_examples": []
+}

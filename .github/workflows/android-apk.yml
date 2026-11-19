@@ -1,0 +1,76 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.4
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Validate vocabulary database
+        run: |
+          mkdir -p tools/data/out
+          python3 -I tools/data/validate_database.py assets/db/vocab.db tools/data/out/validation.json
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test --reporter expanded
+
+      # Optional release signing: add repository secrets ANDROID_KEYSTORE_BASE64,
+      # ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS. Without them the APK is debug-signed.
+      - name: Configure release signing
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          mkdir -p android/keystore
+          echo "$KEYSTORE_B64" | base64 -d > android/keystore/ielts-release.jks
+          printf "storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=../keystore/ielts-release.jks\n" \
+            "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" > android/key.properties
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Verify APK
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          unzip -l "$APK" | grep "assets/flutter_assets/assets/db/vocab.db"
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          if "$BT/aapt" dump permissions "$APK" | grep -q android.permission.INTERNET; then echo "unexpected INTERNET permission"; exit 1; fi
+          "$BT/apksigner" verify --print-certs "$APK"
+          sha256sum "$APK"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: IELTS_Vocabulary_Master-apk
+          path: build/app/outputs/flutter-apk/app-release.apk

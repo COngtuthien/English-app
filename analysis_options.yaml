@@ -1,0 +1,14 @@
+include: package:flutter_lints/flutter.yaml
+
+formatter:
+  page_width: 140
+
+analyzer:
+  exclude:
+    - build/**
+    - data_sources/**
+
+linter:
+  rules:
+    prefer_single_quotes: true
+    avoid_print: true
