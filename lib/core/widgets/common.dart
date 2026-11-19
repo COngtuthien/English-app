@@ -437,3 +437,150 @@ Future<bool> confirmDialog(
   );
   return r ?? false;
 }
+
+/// Value returned by [showCountPicker] when the learner chooses "Tất cả".
+const int kCountAll = 1000;
+
+/// Bottom sheet that lets the learner choose how many cards / questions to practise.
+/// Returns the chosen number, [kCountAll] for "Tất cả", or null if dismissed.
+Future<int?> showCountPicker(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  int initial = 10,
+  List<int> options = const [5, 10, 15, 20, 30, 50],
+  bool allowAll = false,
+  String unit = 'thẻ',
+  int maxCustom = 200,
+}) {
+  return showModalBottomSheet<int>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    useRootNavigator: true, // cover the bottom navigation bar
+    builder: (ctx) => _CountPickerSheet(
+      title: title,
+      subtitle: subtitle,
+      initial: initial,
+      options: options,
+      allowAll: allowAll,
+      unit: unit,
+      maxCustom: maxCustom,
+    ),
+  );
+}
+
+class _CountPickerSheet extends StatefulWidget {
+  final String title;
+  final String? subtitle;
+  final int initial;
+  final List<int> options;
+  final bool allowAll;
+  final String unit;
+  final int maxCustom;
+  const _CountPickerSheet({
+    required this.title,
+    this.subtitle,
+    required this.initial,
+    required this.options,
+    required this.allowAll,
+    required this.unit,
+    required this.maxCustom,
+  });
+  @override
+  State<_CountPickerSheet> createState() => _CountPickerSheetState();
+}
+
+class _CountPickerSheetState extends State<_CountPickerSheet> {
+  late int _value = widget.initial;
+  final _custom = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _custom.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_custom.text.trim().isNotEmpty) {
+      final n = int.tryParse(_custom.text.trim());
+      if (n == null || n < 1 || n > widget.maxCustom) {
+        setState(() => _error = 'Nhập số từ 1 đến ${widget.maxCustom}');
+        return;
+      }
+      _value = n;
+    }
+    Navigator.pop(context, _value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
+          if (widget.subtitle != null) ...[const SizedBox(height: 4), Text(widget.subtitle!, style: TextStyle(color: cs.onSurfaceVariant))],
+          const SizedBox(height: 16),
+          Text('Số lượng', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final n in widget.options)
+                ChoiceChip(
+                  key: ValueKey('count-$n'),
+                  label: Text('$n ${widget.unit}'),
+                  selected: _value == n && _custom.text.isEmpty,
+                  onSelected: (_) => setState(() {
+                    _value = n;
+                    _custom.clear();
+                    _error = null;
+                  }),
+                ),
+              if (widget.allowAll)
+                ChoiceChip(
+                  key: const ValueKey('count-all'),
+                  label: const Text('Tất cả'),
+                  selected: _value == kCountAll && _custom.text.isEmpty,
+                  onSelected: (_) => setState(() {
+                    _value = kCountAll;
+                    _custom.clear();
+                    _error = null;
+                  }),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            key: const ValueKey('count-custom'),
+            controller: _custom,
+            keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() => _error = null),
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              labelText: 'Hoặc nhập số khác (1–${widget.maxCustom})',
+              prefixIcon: const Icon(Icons.edit_rounded),
+              errorText: _error,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              key: const ValueKey('count-start'),
+              onPressed: _submit,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Bắt đầu'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

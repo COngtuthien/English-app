@@ -58,7 +58,7 @@ void main() {
     expect(counter(tester), '1/3');
     final first = frontHeadword(tester);
 
-    await tester.tap(find.text('Chạm để lật thẻ'));
+    await tester.tap(find.byKey(const ValueKey('flash-card')));
     await pumpFor(tester, 500);
     expect(find.text('Chọn mức độ ghi nhớ để chuyển sang từ tiếp theo.'), findsOneWidget);
     expect(find.byKey(const ValueKey('grade-good')), findsOneWidget);

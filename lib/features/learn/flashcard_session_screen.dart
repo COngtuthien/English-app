@@ -37,7 +37,10 @@ extension on SessionKind {
 class FlashcardSessionScreen extends ConsumerStatefulWidget {
   final SessionKind kind;
   final int? topicId;
-  const FlashcardSessionScreen({super.key, required this.kind, this.topicId});
+
+  /// Number of cards chosen by the learner (null = default for the session kind).
+  final int? count;
+  const FlashcardSessionScreen({super.key, required this.kind, this.topicId, this.count});
   @override
   ConsumerState<FlashcardSessionScreen> createState() => _FlashcardSessionScreenState();
 }
@@ -82,6 +85,8 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
     final vocab = ref.read(vocabRepoProvider);
     switch (widget.kind) {
       case SessionKind.learnNew:
+        final chosen = widget.count;
+        if (extra == 0 && chosen != null) return _learning.nextNewWords(chosen, s, topicId: widget.topicId);
         final remaining = extra > 0 ? extra : s.dailyNewWords - await _learning.newWordsToday();
         if (remaining <= 0) return [];
         return _learning.nextNewWords(remaining, s, topicId: widget.topicId);
@@ -89,13 +94,14 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
         return _learning.dueEntries(limit: s.dailyReviewLimit);
       case SessionKind.random:
         final learned = await _learning.learnedIds();
-        return learned.length >= 20 ? (await vocab.summaries((learned..shuffle()).take(20).toList())) : vocab.randomEntries(20);
+        final n = widget.count ?? 20;
+        return learned.length >= n ? (await vocab.summaries((learned..shuffle()).take(n).toList())) : vocab.randomEntries(n);
       case SessionKind.topic:
-        return vocab.randomEntries(20, topicId: widget.topicId);
+        return vocab.randomEntries(widget.count ?? 20, topicId: widget.topicId);
       case SessionKind.difficult:
-        return (await _learning.difficultWords())..shuffle();
+        return ((await _learning.difficultWords())..shuffle()).take(widget.count ?? kCountAll).toList();
       case SessionKind.favorites:
-        return ((await _learning.favorites())..shuffle()).take(40).toList();
+        return ((await _learning.favorites())..shuffle()).take(widget.count ?? 40).toList();
     }
   }
 
@@ -175,6 +181,17 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
   }
 
   void _toggleFlip() => setState(_session.toggleFlip);
+
+  // Swiping the card in any direction (left, right, up or down) flips it, like a tap.
+  Offset _drag = Offset.zero;
+  static const double _swipeDistance = 40;
+  static const double _swipeVelocity = 300;
+
+  void _onSwipeEnd(DragEndDetails d) {
+    final fast = d.velocity.pixelsPerSecond.distance >= _swipeVelocity;
+    if (_drag.distance >= _swipeDistance || fast) _toggleFlip();
+    _drag = Offset.zero;
+  }
 
   /// Grades the card shown at [atPosition]: advances synchronously (next card, face-down), then
   /// stores the review in the background. Duplicate taps for the same position are ignored.
@@ -308,8 +325,12 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
               child: KeyedSubtree(
                 key: ValueKey('card-$pos-${item.entry.id}'),
                 child: GestureDetector(
+                  key: const ValueKey('flash-card'),
                   behavior: HitTestBehavior.opaque,
                   onTap: _toggleFlip,
+                  onPanStart: (_) => _drag = Offset.zero,
+                  onPanUpdate: (d) => _drag += d.delta,
+                  onPanEnd: _onSwipeEnd,
                   child: FlipCard(flipped: revealed, front: _front(context, item.entry), back: _back(context, item.entry)),
                 ),
               ),
@@ -465,8 +486,16 @@ class _FlashcardSessionScreenState extends ConsumerState<FlashcardSessionScreen>
           Row(
             children: [
               LevelBadge(cefr: e.cefr, difficulty: e.difficulty),
-              const Spacer(),
-              Text('Chạm để lật thẻ', style: TextStyle(color: cs.outline, fontSize: 12)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Chạm hoặc vuốt để lật thẻ',
+                  textAlign: TextAlign.end,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.outline, fontSize: 12),
+                ),
+              ),
             ],
           ),
           Expanded(

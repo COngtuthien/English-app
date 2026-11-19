@@ -54,7 +54,16 @@ class WordListsScreen extends ConsumerWidget {
       floatingActionButton: practiceKind == null || (data.valueOrNull?.isEmpty ?? true)
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => context.push('/flashcards?kind=$practiceKind'),
+              onPressed: () async {
+                final n = await showCountPicker(
+                  context,
+                  title: title,
+                  subtitle: 'Chọn số thẻ, hoặc "Tất cả" để ôn toàn bộ ${data.valueOrNull?.length ?? 0} từ',
+                  initial: kCountAll,
+                  allowAll: true,
+                );
+                if (n != null && context.mounted) context.push('/flashcards?kind=$practiceKind&count=$n');
+              },
               icon: const Icon(Icons.style_rounded),
               label: const Text('Ôn bằng flashcard'),
             ),

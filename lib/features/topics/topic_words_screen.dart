@@ -204,7 +204,16 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       foregroundColor: AppColors.indigoDeep,
                       minimumSize: const Size(0, 44),
                     ),
-                    onPressed: () => context.push('/learn?topic=${t.id}'),
+                    onPressed: () async {
+                      final n = await showCountPicker(
+                        context,
+                        title: 'Học từ mới: ${t.nameVi}',
+                        subtitle: 'Chọn số từ mới muốn học trong chủ đề này',
+                        initial: 10,
+                        unit: 'từ',
+                      );
+                      if (n != null && mounted) context.push('/learn?topic=${t.id}&count=$n');
+                    },
                     child: const Text('Học chủ đề'),
                   ),
                 ),
@@ -216,7 +225,15 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       side: const BorderSide(color: Colors.white70),
                       minimumSize: const Size(0, 44),
                     ),
-                    onPressed: () => context.push('/flashcards?kind=topic&topic=${t.id}'),
+                    onPressed: () async {
+                      final n = await showCountPicker(
+                        context,
+                        title: 'Flashcard: ${t.nameVi}',
+                        subtitle: 'Chọn số thẻ cho phiên này',
+                        initial: 20,
+                      );
+                      if (n != null && mounted) context.push('/flashcards?kind=topic&topic=${t.id}&count=$n');
+                    },
                     child: const Text('Flashcard'),
                   ),
                 ),
@@ -228,15 +245,27 @@ class _TopicWordsScreenState extends ConsumerState<TopicWordsScreen> {
                       side: const BorderSide(color: Colors.white70),
                       minimumSize: const Size(0, 44),
                     ),
-                    onPressed: () => context.push(
-                      '/quiz/play',
-                      extra: QuizConfig(
-                        types: const {QuestionType.enToVi, QuestionType.viToEn, QuestionType.definition},
-                        count: 10,
-                        topicId: t.id,
-                        preferLearned: false,
-                      ),
-                    ),
+                    onPressed: () async {
+                      final n = await showCountPicker(
+                        context,
+                        title: 'Quiz: ${t.nameVi}',
+                        subtitle: 'Chọn số câu hỏi',
+                        initial: 10,
+                        options: const [5, 10, 20, 30],
+                        unit: 'câu',
+                        maxCustom: 100,
+                      );
+                      if (n == null || !mounted) return;
+                      context.push(
+                        '/quiz/play',
+                        extra: QuizConfig(
+                          types: const {QuestionType.enToVi, QuestionType.viToEn, QuestionType.definition},
+                          count: n,
+                          topicId: t.id,
+                          preferLearned: false,
+                        ),
+                      );
+                    },
                     child: const Text('Quiz'),
                   ),
                 ),

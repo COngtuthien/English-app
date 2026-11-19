@@ -79,7 +79,11 @@ GoRouter buildRouter(Ref ref) {
       GoRoute(
         path: '/learn',
         parentNavigatorKey: _rootKey,
-        builder: (c, s) => FlashcardSessionScreen(kind: SessionKind.learnNew, topicId: int.tryParse(s.uri.queryParameters['topic'] ?? '')),
+        builder: (c, s) => FlashcardSessionScreen(
+          kind: SessionKind.learnNew,
+          topicId: int.tryParse(s.uri.queryParameters['topic'] ?? ''),
+          count: int.tryParse(s.uri.queryParameters['count'] ?? ''),
+        ),
       ),
       GoRoute(
         path: '/review',
@@ -92,6 +96,7 @@ GoRouter buildRouter(Ref ref) {
         builder: (c, s) => FlashcardSessionScreen(
           kind: SessionKind.values.byName(s.uri.queryParameters['kind'] ?? 'random'),
           topicId: int.tryParse(s.uri.queryParameters['topic'] ?? ''),
+          count: int.tryParse(s.uri.queryParameters['count'] ?? ''),
         ),
       ),
       GoRoute(path: '/quiz', parentNavigatorKey: _rootKey, builder: (c, s) => const QuizSelectionScreen()),

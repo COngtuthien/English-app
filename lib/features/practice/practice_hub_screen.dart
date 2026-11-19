@@ -73,7 +73,17 @@ class PracticeHubScreen extends StatelessWidget {
                   leading: Icon(f.$2, color: AppColors.indigo),
                   title: Text(f.$1, style: const TextStyle(fontWeight: FontWeight.w600)),
                   trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => context.push(f.$3),
+                  onTap: () async {
+                    final all = !f.$3.endsWith('random');
+                    final n = await showCountPicker(
+                      context,
+                      title: f.$1,
+                      subtitle: all ? 'Chọn số thẻ, hoặc "Tất cả" để ôn toàn bộ danh sách' : 'Chọn số thẻ cho phiên này',
+                      initial: all ? kCountAll : 20,
+                      allowAll: all,
+                    );
+                    if (n != null && context.mounted) context.push('${f.$3}&count=$n');
+                  },
                 ),
               ),
             ),

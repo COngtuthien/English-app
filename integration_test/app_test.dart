@@ -64,14 +64,15 @@ void main() {
     await pumpUntil(tester, find.text('Hiện đáp án'));
     String counter() => tester.widget<Text>(find.byKey(const ValueKey('flash-counter'))).data!;
     expect(counter(), startsWith('1/'));
-    await tester.tap(find.text('Chạm để lật thẻ')); // reveal by tapping the card itself
+    await tester.tap(find.byKey(const ValueKey('flash-card'))); // reveal by tapping the card itself
     await pumpUntil(tester, find.byKey(const ValueKey('grade-good')));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.byKey(const ValueKey('grade-good')));
     await pumpUntil(tester, find.text('Hiện đáp án')); // next card, face-down
     expect(counter(), startsWith('2/'));
     expect(find.byKey(const ValueKey('grade-good')), findsNothing);
-    await tester.tap(find.text('Hiện đáp án'));
+    await tester.pump(const Duration(milliseconds: 500)); // let the card transition finish
+    await tester.fling(find.byKey(const ValueKey('flash-card')).last, const Offset(-300, 0), 1200); // swipe to flip
     await pumpUntil(tester, find.byKey(const ValueKey('grade-easy')));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.byKey(const ValueKey('grade-easy')));
